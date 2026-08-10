@@ -1,0 +1,28 @@
+{
+  "name": "keel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.12.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "boundaries": "depcruise --config .dependency-cruiser.cjs packages services apps",
+    "verify": "pnpm lint && pnpm typecheck && pnpm boundaries && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.7",
+    "@changesets/cli": "^2.27.9",
+    "dependency-cruiser": "^16.4.2",
+    "turbo": "^2.2.3",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  verify:
+    name: Lint, typecheck, boundaries, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and format check
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Dependency boundaries
+        run: pnpm boundaries
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  boundary-guard:
+    name: Boundary rule is actually enforced
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Proves the rule works rather than trusting the config file.
+      # Injects a forbidden import, asserts the check fails, then removes it.
+      - name: Inject a forbidden packages/ -> services/ import
+        run: |
+          printf 'import "../../../services/api/src/index.js";\n' > packages/contracts/src/__boundary_probe.ts
+      - name: Expect the boundary check to fail
+        run: |
+          if pnpm boundaries; then
+            echo "::error::Boundary rule did not fire on a forbidden import."
+            exit 1
+          fi
+          echo "Boundary rule fired as expected."
+      - name: Clean up
+        if: always()
+        run: rm -f packages/contracts/src/__boundary_probe.ts

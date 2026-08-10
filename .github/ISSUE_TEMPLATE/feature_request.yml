@@ -1,0 +1,18 @@
+name: Feature request
+description: Propose a capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: Describe the situation, not the feature you have in mind.
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would do about it
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you considered instead

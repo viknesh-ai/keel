@@ -1,0 +1,23 @@
+{
+  "name": "@keel/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "JSON Schemas, error taxonomy, event types and AG-UI mappings. Imported by everything, imports nothing.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  }
+}
