@@ -1,0 +1,568 @@
+@import "./tokens.css";
+
+/* Component styles for @keel/ui.
+   Hierarchy comes from 1px borders and background steps, never from shadows.
+   The only shadow is --shadow-overlay, on genuinely floating surfaces. */
+
+.k-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95em;
+}
+
+.k-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 2px ring at 2px offset, on everything focusable. Never outline: none. */
+.k-focus:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ------------------------------------------------------------------ Button */
+
+.k-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--row-height-default);
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-13);
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) ease-out,
+    border-color var(--duration-fast) ease-out;
+}
+
+.k-btn--sm {
+  height: var(--row-height-compact);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-12);
+}
+
+.k-btn[disabled],
+.k-btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.k-btn--primary {
+  background: var(--accent-bg);
+  color: var(--accent-text);
+}
+.k-btn--primary:hover:not([disabled]):not([aria-disabled="true"]) {
+  background: var(--accent-bg-hover);
+}
+
+.k-btn--secondary {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.k-btn--secondary:hover:not([disabled]):not([aria-disabled="true"]) {
+  background: var(--bg-hover);
+}
+
+.k-btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.k-btn--ghost:hover:not([disabled]):not([aria-disabled="true"]) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.k-btn--danger {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+.k-btn--danger:hover:not([disabled]):not([aria-disabled="true"]) {
+  background: var(--danger-bg-hover);
+}
+
+.k-btn__spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: k-spin 600ms linear infinite;
+}
+
+@keyframes k-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.k-iconbtn {
+  width: var(--row-height-default);
+  padding: 0;
+}
+.k-iconbtn.k-btn--sm {
+  width: var(--row-height-compact);
+}
+
+/* ------------------------------------------------------------------- Input */
+
+.k-input {
+  width: 100%;
+  height: var(--row-height-default);
+  padding: 0 var(--space-2);
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-13);
+}
+
+.k-input--sm {
+  height: var(--row-height-compact);
+  font-size: var(--font-size-12);
+}
+
+.k-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.k-input[aria-invalid="true"] {
+  border-color: var(--danger-bg);
+}
+
+.k-input[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.k-textarea {
+  height: auto;
+  min-height: 72px;
+  padding: var(--space-2);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* ------------------------------------------------------------------- Badge */
+
+.k-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-12);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.k-badge--neutral {
+  background: var(--bg-active);
+  color: var(--text-secondary);
+}
+.k-badge--info {
+  background: var(--info-subtle-bg);
+  color: var(--info-subtle-text);
+}
+.k-badge--success {
+  background: var(--success-subtle-bg);
+  color: var(--success-subtle-text);
+}
+.k-badge--warning {
+  background: var(--warning-subtle-bg);
+  color: var(--warning-subtle-text);
+}
+.k-badge--danger {
+  background: var(--danger-subtle-bg);
+  color: var(--danger-subtle-text);
+}
+
+/* --------------------------------------------------------------- StatusDot */
+
+.k-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-13);
+  color: var(--text-secondary);
+}
+
+.k-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.k-status__dot--running {
+  background: var(--accent-bg);
+  animation: k-pulse 1.4s ease-in-out infinite;
+}
+.k-status__dot--success {
+  background: var(--success-bg);
+}
+.k-status__dot--warning {
+  background: var(--warning-bg);
+}
+.k-status__dot--failed {
+  background: var(--danger-bg);
+}
+.k-status__dot--idle {
+  background: var(--border-strong);
+}
+
+@keyframes k-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* -------------------------------------------------------------- EmptyState */
+
+.k-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-6);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.k-empty__title {
+  margin: 0;
+  font-size: var(--font-size-14);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.k-empty__desc {
+  margin: 0;
+  max-width: 44ch;
+  font-size: var(--font-size-13);
+  color: var(--text-secondary);
+}
+
+.k-empty__action {
+  margin-top: var(--space-2);
+}
+
+/* ---------------------------------------------------------------- Skeleton */
+
+.k-skeleton {
+  display: block;
+  background: var(--bg-active);
+  animation: k-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes k-shimmer {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* --------------------------------------------------------------- CodeBlock */
+
+.k-code {
+  margin: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.k-code__label {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+  font-size: var(--font-size-12);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.k-code__pre {
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  font-size: var(--font-size-12);
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+/* ---------------------------------------------------------------- KeyValue */
+
+.k-kv {
+  margin: 0;
+  display: grid;
+  gap: 1px;
+  background: var(--border-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.k-kv__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) 1fr;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  min-height: var(--row-height-default);
+  align-items: center;
+}
+
+.k-kv__key {
+  font-size: var(--font-size-12);
+  color: var(--text-secondary);
+}
+
+.k-kv__value {
+  margin: 0;
+  font-size: var(--font-size-13);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.k-duration {
+  color: var(--text-secondary);
+}
+
+/* --------------------------------------------------- Floating surfaces --- */
+
+.k-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.k-dialog,
+.k-popover,
+.k-menu,
+.k-tooltip,
+.k-toast {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text-primary);
+}
+
+.k-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - var(--space-8)));
+  max-height: calc(100vh - var(--space-8));
+  overflow: auto;
+  padding: var(--space-6);
+}
+
+.k-dialog__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-16);
+  font-weight: 600;
+}
+
+.k-dialog__desc {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-13);
+  color: var(--text-secondary);
+}
+
+.k-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+
+.k-dialog__close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-16);
+  line-height: 1;
+  cursor: pointer;
+}
+.k-dialog__close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.k-popover {
+  padding: var(--space-3);
+  max-width: 320px;
+  font-size: var(--font-size-13);
+}
+
+.k-menu {
+  padding: var(--space-1);
+  min-width: 180px;
+  border-radius: var(--radius-md);
+}
+
+.k-menu__item {
+  display: flex;
+  align-items: center;
+  height: var(--row-height-compact);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.k-menu__item[data-highlighted] {
+  background: var(--bg-hover);
+}
+
+.k-menu__item[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.k-menu__item--danger {
+  color: var(--danger-subtle-text);
+}
+
+.k-tooltip {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-12);
+  max-width: 260px;
+}
+
+.k-tooltip__arrow {
+  fill: var(--bg-raised);
+}
+
+/* ------------------------------------------------------------------- Tabs */
+
+.k-tabs__list {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.k-tabs__trigger {
+  height: var(--row-height-default);
+  padding: 0 var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.k-tabs__trigger[data-state="active"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-bg);
+}
+
+.k-tabs__content {
+  padding-top: var(--space-4);
+  outline: none;
+}
+
+/* ----------------------------------------------------------------- Select */
+
+.k-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  height: var(--row-height-default);
+  min-width: 160px;
+  padding: 0 var(--space-2);
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+}
+
+.k-select__icon {
+  color: var(--text-tertiary);
+}
+
+/* ------------------------------------------------------------------ Toast */
+
+.k-toast__viewport {
+  position: fixed;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 340px;
+  max-width: calc(100vw - var(--space-8));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  z-index: 100;
+}
+
+.k-toast {
+  position: relative;
+  padding: var(--space-3) var(--space-8) var(--space-3) var(--space-3);
+}
+
+.k-toast--success {
+  border-left: 2px solid var(--success-bg);
+}
+.k-toast--danger {
+  border-left: 2px solid var(--danger-bg);
+}
+
+.k-toast__title {
+  margin: 0;
+  font-size: var(--font-size-13);
+  font-weight: 600;
+}
+
+.k-toast__desc {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-12);
+  color: var(--text-secondary);
+}
+
+.k-toast__close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}

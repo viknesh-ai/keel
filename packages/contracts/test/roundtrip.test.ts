@@ -21,7 +21,7 @@ describe("Zod → JSON Schema round trip", () => {
   const validate = ajv.compile(inputSchema);
 
   it("emits a compilable draft 2020-12 schema", () => {
-    expect(inputSchema["$schema"]).toContain("2020-12");
+    expect(inputSchema.$schema).toContain("2020-12");
     expect(typeof validate).toBe("function");
   });
 

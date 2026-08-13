@@ -13,7 +13,7 @@ const LOCK_TIMEOUT_MS = 10_000;
 const IDLE_IN_TRANSACTION_TIMEOUT_MS = 60_000;
 
 export function resolveDatabaseUrl(override?: string): string {
-  return override ?? process.env["DATABASE_URL"] ?? COMPOSE_DEFAULT_URL;
+  return override ?? process.env.DATABASE_URL ?? COMPOSE_DEFAULT_URL;
 }
 
 /** Never log a DSN without this. */

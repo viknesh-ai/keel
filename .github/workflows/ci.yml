@@ -157,6 +157,62 @@ jobs:
           fi
           echo "RLS suite caught the weakened policy, as expected."
 
+  design-tokens:
+    name: Token matrix is current and meets WCAG AA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # tokens.css is generated from tokens.ts. Regenerating and diffing catches
+      # a stale stylesheet, which would mean the browser renders colours the
+      # contrast check never verified.
+      - name: tokens.css matches its generator
+        run: |
+          pnpm --filter @keel/ui build:tokens
+          if ! git diff --quiet -- packages/ui/src/tokens.css; then
+            echo "::error::packages/ui/src/tokens.css is stale. Run 'pnpm --filter @keel/ui build:tokens' and commit."
+            git --no-pager diff -- packages/ui/src/tokens.css
+            exit 1
+          fi
+
+      - name: Contrast and primitive tests
+        run: pnpm --filter @keel/ui test
+
+  contrast-guard:
+    name: Contrast check is actually enforcing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Same reasoning as boundary-guard and rls-guard: assert the gate fires.
+      - name: Break one token pair
+        run: |
+          perl -pi -e 's/^  "text-secondary": "#a3adbb",$/  "text-secondary": "#3a4049",/' packages/ui/src/tokens.ts
+          if ! grep -q '"text-secondary": "#3a4049"' packages/ui/src/tokens.ts; then
+            echo "::error::Mutation did not apply — the guard would pass for the wrong reason. Update the pattern in this step."
+            exit 1
+          fi
+
+      - name: Expect the contrast check to fail
+        run: |
+          if pnpm --filter @keel/ui test; then
+            echo "::error::Contrast check passed against a token pair below 4.5:1. It is not enforcing."
+            exit 1
+          fi
+          echo "Contrast check caught the regression, as expected."
+
   boundary-guard:
     name: Boundary rule is actually enforced
     runs-on: ubuntu-latest
