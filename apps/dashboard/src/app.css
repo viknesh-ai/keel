@@ -1,0 +1,212 @@
+@import "@keel/ui/styles.css";
+
+/* Dashboard shell layout. Component styling lives in @keel/ui; this file is
+   only the frame those components sit in. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-13);
+  -webkit-font-smoothing: antialiased;
+}
+
+.d-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Visible only on focus, and the first thing in the tab order. */
+.d-skip {
+  position: absolute;
+  left: var(--space-2);
+  top: -48px;
+  z-index: 200;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: top var(--duration-fast) ease-out;
+}
+.d-skip:focus-visible {
+  top: var(--space-2);
+}
+
+.d-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 48px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  flex: none;
+}
+
+.d-brand {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-14);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.d-header__spacer {
+  flex: 1;
+}
+
+.d-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.d-nav {
+  display: flex;
+  flex-direction: column;
+  width: 200px;
+  flex: none;
+  padding: var(--space-3) var(--space-2);
+  border-right: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.d-nav__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.d-nav__foot {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.d-nav__link {
+  display: flex;
+  align-items: center;
+  height: var(--row-height-default);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.d-nav__link:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.d-nav__link--active {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.d-main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-6);
+  outline: none;
+}
+
+.d-title {
+  margin: 0 0 var(--space-6);
+  font-size: var(--font-size-20);
+  font-weight: 600;
+}
+
+.d-fallback {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 640px;
+}
+
+.d-error {
+  max-width: 60ch;
+  margin: var(--space-16) auto;
+  text-align: center;
+}
+
+.d-error__title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-16);
+  font-weight: 600;
+}
+
+.d-error__body {
+  margin: 0 0 var(--space-6);
+  color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------- Styleguide */
+
+.d-sg__section {
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.d-sg__heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-14);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.d-sg__lede {
+  margin: 0 0 var(--space-4);
+  color: var(--text-secondary);
+  max-width: 72ch;
+}
+
+.d-sg__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.d-sg__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-12);
+}
+
+.d-sg__table th,
+.d-sg__table td {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.d-sg__table th {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.d-sg__swatch {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}

@@ -80,7 +80,9 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
 
 /* ----------------------------------------------------------------- Input -- */
 
-export type InputProps = ComponentPropsWithoutRef<"input"> & {
+// `size` is omitted from the DOM props: <input size> is a character-count
+// number, and intersecting it with our ControlSize collapses to `never`.
+export type InputProps = Omit<ComponentPropsWithoutRef<"input">, "size"> & {
   readonly invalid?: boolean;
   /** Ids, tokens and JSON read as mono. */
   readonly mono?: boolean;

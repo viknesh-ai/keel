@@ -1,4 +1,7 @@
-import "./styles.css";
+// The stylesheet is deliberately NOT imported here. A library that pulls CSS
+// into the JS module graph forces a bundler on every consumer and cannot be
+// used from a Shadow DOM root, which doc 05 §E6 requires for the widget.
+// Consumers import "@keel/ui/styles.css" themselves.
 
 export {
   contrastRatio,

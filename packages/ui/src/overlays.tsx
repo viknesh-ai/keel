@@ -181,7 +181,9 @@ export type SelectOption = {
 };
 
 export type SelectProps = {
-  readonly value?: string;
+  // Explicitly `| undefined`: an uncontrolled caller passes undefined, and
+  // exactOptionalPropertyTypes distinguishes that from omitting the prop.
+  readonly value?: string | undefined;
   readonly onValueChange: (value: string) => void;
   readonly options: readonly SelectOption[];
   readonly placeholder?: string;
