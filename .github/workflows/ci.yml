@@ -44,6 +44,119 @@ jobs:
       - name: Build
         run: pnpm build
 
+  integration:
+    name: Migrations and RLS against a real Postgres
+    runs-on: ubuntu-latest
+
+    # Same image as docker-compose.yml. RLS behaviour is version-sensitive and
+    # the whole point of this job is to exercise the real engine, so testing
+    # against anything else would defeat it.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: keel
+          POSTGRES_PASSWORD: keel
+          POSTGRES_DB: keel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U keel -d keel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://keel:keel@localhost:5432/keel
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Migrations apply from an empty database
+        run: pnpm migrate
+
+      - name: Running them again is a no-op
+        run: |
+          output="$(pnpm migrate)"
+          echo "$output"
+          if ! grep -q "nothing to do" <<<"$output"; then
+            echo "::error::Second migrate run was not a no-op."
+            exit 1
+          fi
+
+      # Proves the checksum guard fires, rather than trusting that it would.
+      - name: A tampered migration is rejected
+        run: |
+          cp migrations/0001_init.sql /tmp/0001_init.sql.orig
+          printf '\n-- tampered\n' >> migrations/0001_init.sql
+          if pnpm migrate; then
+            echo "::error::Tampered migration was accepted."
+            cp /tmp/0001_init.sql.orig migrations/0001_init.sql
+            exit 1
+          fi
+          echo "Checksum guard fired as expected."
+          cp /tmp/0001_init.sql.orig migrations/0001_init.sql
+
+      - name: Integration tests (throwaway database per file)
+        run: pnpm test:int
+
+  rls-guard:
+    name: RLS test is actually enforcing
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: keel
+          POSTGRES_PASSWORD: keel
+          POSTGRES_DB: keel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U keel -d keel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://keel:keel@localhost:5432/keel
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # A row-level security policy that looks correct and silently permits
+      # everything is the failure mode this schema exists to prevent. Asserting
+      # the tests pass does not prove they would notice; weakening a policy and
+      # asserting they fail does.
+      - name: Weaken one policy to USING (true)
+        run: |
+          perl -0pi -e 's/create policy projects_org_isolation on projects\n  as permissive for all to public\n  using      \(org_id = keel_current_org_id\(\)\)/create policy projects_org_isolation on projects\n  as permissive for all to public\n  using      (true)/' migrations/0001_init.sql
+          if ! grep -q "using      (true)" migrations/0001_init.sql; then
+            echo "::error::Mutation did not apply — the guard would have passed for the wrong reason. Update the pattern in this step to match 0001_init.sql."
+            exit 1
+          fi
+
+      - name: Expect the RLS suite to fail
+        run: |
+          if pnpm test:int; then
+            echo "::error::RLS suite passed against a USING (true) policy. The cross-org tests are not enforcing anything."
+            exit 1
+          fi
+          echo "RLS suite caught the weakened policy, as expected."
+
   boundary-guard:
     name: Boundary rule is actually enforced
     runs-on: ubuntu-latest

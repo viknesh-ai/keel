@@ -17,8 +17,8 @@ implemented. Numbers are reserved so cross-references in the architecture docs s
 | 002 | TypeScript across the control plane | to write |
 | 003 | AG-UI as the frontend wire protocol | to write |
 | 004 | Target MCP 2026-07-28 with 2025-11-25 fallback | to write |
-| 005 | PostgreSQL + pgvector rather than a dedicated vector database | to write |
-| 006 | Postgres/Redis queueing rather than Temporal | to write |
+| 005 | [PostgreSQL + pgvector rather than a dedicated vector database](005-postgres-pgvector.md) | accepted |
+| 006 | [Postgres/Redis queueing rather than Temporal](006-postgres-redis-queueing.md) | accepted |
 | 007 | Own step-log durable executor | to write |
 | 008 | Zod as authoring format, JSON Schema as wire format | to write |
 | 009 | Declarative policy language rather than Rego or Cedar | to write |
