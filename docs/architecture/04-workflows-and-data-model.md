@@ -92,8 +92,13 @@ organizations        id, name, slug, settings, created_at
 users                id, email, name, auth_provider, created_at        -- Keel dashboard users
 memberships          org_id, user_id, role(owner|admin|developer|viewer), created_at
 projects             id, org_id, name, slug, settings
-environments         id, project_id, name(development|staging|production), config
+environments         id, org_id, project_id, name(development|staging|production), config
+                     -- org_id is denormalised from projects so the RLS policy has a local
+                     -- column to test. A composite FK (project_id, org_id) -> projects
+                     -- (id, org_id) is what stops the two from diverging.
 api_keys             id, org_id, project_id, name, hash, scopes[], last_used_at, expires_at
+                     -- same composite FK, same reason. hash is sha256 hex, CHECK-constrained
+                     -- so a plaintext key is a constraint violation rather than a review finding
 identity_configs     id, project_id, issuer, jwks_uri, algorithms[], audience, allow_symmetric
 end_user_identities  id, project_id, subject, first_seen_at, last_seen_at, claims_digest
                      -- claims are NOT persisted; digest only, for correlation
@@ -222,3 +227,17 @@ erDiagram
 3. A `run` references exactly one `agent_version`, and that version's referenced tool/knowledge/policy versions. Reproducibility falls out of this rather than being bolted on.
 4. `run_steps` is append-only; corrections are new steps.
 5. Secrets appear only as `secret_ref`. A CI grep for high-entropy strings in `payload jsonb` fails the build.
+
+### B4. How RLS is wired
+
+The active tenant travels in a session variable, read by every policy through `keel_current_org_id()`:
+
+```sql
+select set_config('keel.org_id', 'org_01J…', false);
+```
+
+`current_setting('keel.org_id', true)` returns NULL when unset, and NULL fails every policy comparison — so a connection that forgets to set it reads nothing and writes nothing. Fail-closed is the default path, not a special case. `keel.user_id` does the same job for `users`, which is the one identity table that is not tenant-scoped.
+
+RLS is `ENABLE`d **and `FORCE`d**. Without `FORCE` the table owner bypasses every policy, which is the default state of a self-host that has not created a separate role — the policies would be decorative exactly where they matter most. The consequences are real and are documented in `migrations/README.md`: a migration that writes tenant rows must set `keel.org_id` first, and a non-superuser `pg_dump` produces zero tenant rows.
+
+The application connects as a LOGIN role granted `keel_app`, which owns nothing and holds no `BYPASSRLS`. What this does *not* defend against: a superuser, and anything that can execute arbitrary statements on the app connection — `SET keel.org_id` is available to that role by design. RLS here catches a forgotten `WHERE org_id = $1`, not SQL injection; injection is the repository layer's job.

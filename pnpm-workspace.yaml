@@ -2,3 +2,7 @@ packages:
   - "packages/*"
   - "services/*"
   - "apps/*"
+  # Repo tooling and the test suites. Members so that `pnpm typecheck` and
+  # `pnpm lint` actually cover them; the directory layout is unchanged.
+  - "scripts"
+  - "tests"

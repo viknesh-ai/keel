@@ -18,5 +18,11 @@
   },
   "javascript": {
     "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.config.ts", "**/*.config.js"],
+      "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
+    }
+  ]
 }

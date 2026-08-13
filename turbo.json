@@ -4,6 +4,7 @@
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
     "typecheck": { "dependsOn": ["^build"] },
     "test": { "dependsOn": ["^build"] },
+    "test:int": { "dependsOn": ["^build"], "cache": false, "env": ["DATABASE_URL"] },
     "dev": { "cache": false, "persistent": true }
   }
 }
