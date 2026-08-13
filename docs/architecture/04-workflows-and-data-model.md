@@ -131,6 +131,10 @@ run_steps            id, run_id, seq, type(context|retrieval|model|tool|policy|a
 
 `run_steps` is the highest-volume table and the backbone of traces, evaluation, replay and analytics. Partitioned monthly by `started_at`; retention policy prunes partitions rather than deleting rows.
 
+**Correction (migration 0003).** "Partitioned monthly by `started_at`" and "(run_id, seq) unique" cannot both be constraints in PostgreSQL: a unique constraint on a partitioned table must contain the partition key, so the strongest available is `UNIQUE (run_id, seq, started_at)` — which permits the same `(run_id, seq)` in two different months. That is not hypothetical; a run paused in `AwaitingApproval` can outlive a month boundary.
+
+Resolution: `runs.next_seq` is a counter, and a step's `seq` is allocated by `UPDATE runs SET next_seq = next_seq + 1 ... RETURNING`, taken under that row's lock. `(run_id, seq)` is therefore unique **by construction** rather than by constraint, and the per-partition unique index remains as defence in depth against a caller that supplies `seq` itself.
+
 **Tools**
 ```
 tools                id, project_id, name, target, current_version_id, enabled
@@ -225,7 +229,7 @@ erDiagram
 1. Every tenant-scoped query filters `org_id`; RLS enforces it if the application forgets. A repository-layer test asserts no query builder emits an unscoped `SELECT` on a tenant table.
 2. `agent_versions`, `tool_versions`, `workflow_versions`, `policy_versions`, `document_versions` are **insert-only**. Publishing creates a row; nothing updates one.
 3. A `run` references exactly one `agent_version`, and that version's referenced tool/knowledge/policy versions. Reproducibility falls out of this rather than being bolted on.
-4. `run_steps` is append-only; corrections are new steps.
+4. `run_steps` is append-only; corrections are new steps. Enforced by privilege as well as convention — `keel_app` is granted only SELECT and INSERT, so an UPDATE is denied before any code is consulted. The insert-only version tables carry a trigger that raises on UPDATE, which is the layer that also binds the table owner and therefore a future migration.
 5. Secrets appear only as `secret_ref`. A CI grep for high-entropy strings in `payload jsonb` fails the build.
 
 ### B4. How RLS is wired
