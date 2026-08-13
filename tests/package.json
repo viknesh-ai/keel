@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@keel/scripts": "workspace:*",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "@keel/api": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

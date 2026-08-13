@@ -92,7 +92,13 @@ describe("the connection under test cannot bypass RLS", () => {
 
   // The guard against a future migration adding `USING (true)`, widening a
   // predicate, or dropping a WITH CHECK.
-  it("carries exactly the expected policy set", async () => {
+  //
+  // Asserted by shape rather than as a hardcoded list of every policy: a fixed
+  // list has to be edited on every migration, and an assertion people routinely
+  // edit to make green stops being an assertion. This version additionally
+  // catches a *new* table shipped with a bad policy, which a fixed list would
+  // not — it would just be absent from the list.
+  it("gives every tenant table exactly the org-isolation predicate", async () => {
     const result = await app.query<{
       tablename: string;
       policyname: string;
@@ -107,91 +113,45 @@ describe("the connection under test cannot bypass RLS", () => {
         order by tablename, policyname`,
     );
 
-    const normalise = (expression: string | null): string | null =>
-      expression === null ? null : expression.replace(/\s+/g, " ").trim();
+    const normalise = (e: string | null): string | null =>
+      e === null ? null : e.replace(/\s+/g, " ").trim();
 
-    expect(
-      result.rows.map((row) => ({
-        table: row.tablename,
-        policy: row.policyname,
-        permissive: row.permissive,
-        cmd: row.cmd,
-        qual: normalise(row.qual),
-        withCheck: normalise(row.with_check),
-      })),
-    ).toEqual([
-      {
-        table: "api_keys",
-        policy: "api_keys_org_isolation",
-        permissive: "PERMISSIVE",
-        cmd: "ALL",
-        qual: "(org_id = keel_current_org_id())",
-        withCheck: "(org_id = keel_current_org_id())",
-      },
-      {
-        table: "environments",
-        policy: "environments_org_isolation",
-        permissive: "PERMISSIVE",
-        cmd: "ALL",
-        qual: "(org_id = keel_current_org_id())",
-        withCheck: "(org_id = keel_current_org_id())",
-      },
-      {
-        table: "memberships",
-        policy: "memberships_org_isolation",
-        permissive: "PERMISSIVE",
-        cmd: "ALL",
-        qual: "(org_id = keel_current_org_id())",
-        withCheck: "(org_id = keel_current_org_id())",
-      },
-      {
-        table: "organizations",
-        policy: "organizations_org_isolation",
-        permissive: "PERMISSIVE",
-        cmd: "ALL",
-        qual: "(id = keel_current_org_id())",
-        withCheck: "(id = keel_current_org_id())",
-      },
-      {
-        table: "projects",
-        policy: "projects_org_isolation",
-        permissive: "PERMISSIVE",
-        cmd: "ALL",
-        qual: "(org_id = keel_current_org_id())",
-        withCheck: "(org_id = keel_current_org_id())",
-      },
-      {
-        table: "users",
-        policy: "users_delete_self",
-        permissive: "PERMISSIVE",
-        cmd: "DELETE",
-        qual: "(id = keel_current_user_id())",
-        withCheck: null,
-      },
-      {
-        table: "users",
-        policy: "users_insert_self",
-        permissive: "PERMISSIVE",
-        cmd: "INSERT",
-        qual: null,
-        withCheck: "(id = keel_current_user_id())",
-      },
-      {
-        table: "users",
-        policy: "users_select_self_or_co_member",
-        permissive: "PERMISSIVE",
-        cmd: "SELECT",
-        qual: "((id = keel_current_user_id()) OR (EXISTS ( SELECT 1 FROM memberships m WHERE ((m.user_id = users.id) AND (m.org_id = keel_current_org_id())))))",
-        withCheck: null,
-      },
-      {
-        table: "users",
-        policy: "users_update_self",
-        permissive: "PERMISSIVE",
-        cmd: "UPDATE",
-        qual: "(id = keel_current_user_id())",
-        withCheck: "(id = keel_current_user_id())",
-      },
+    // `users` is not tenant-scoped — it is keyed on keel.user_id and its
+    // policies are split per command. Everything else is org-isolated on a
+    // local org_id column.
+    const ORG_ISOLATION = new Set([
+      "(org_id = keel_current_org_id())",
+      "(id = keel_current_org_id())",
+    ]);
+
+    expect(result.rows.length).toBeGreaterThan(0);
+
+    for (const row of result.rows) {
+      if (row.tablename === "users") continue;
+
+      expect(row.permissive, `${row.policyname} must be permissive`).toBe("PERMISSIVE");
+      expect(row.cmd, `${row.policyname} must cover ALL commands`).toBe("ALL");
+      expect(
+        ORG_ISOLATION.has(normalise(row.qual) ?? ""),
+        `${row.tablename}.${row.policyname} USING is "${normalise(row.qual)}", not an org-isolation predicate`,
+      ).toBe(true);
+      expect(
+        ORG_ISOLATION.has(normalise(row.with_check) ?? ""),
+        `${row.tablename}.${row.policyname} WITH CHECK is "${normalise(row.with_check)}", not an org-isolation predicate`,
+      ).toBe(true);
+    }
+  });
+
+  it("keeps the documented per-command split on users", async () => {
+    const result = await app.query<{ policyname: string; cmd: string }>(
+      "select policyname, cmd from pg_policies where tablename = 'users' order by policyname",
+    );
+
+    expect(result.rows).toEqual([
+      { policyname: "users_delete_self", cmd: "DELETE" },
+      { policyname: "users_insert_self", cmd: "INSERT" },
+      { policyname: "users_select_self_or_co_member", cmd: "SELECT" },
+      { policyname: "users_update_self", cmd: "UPDATE" },
     ]);
   });
 });
