@@ -154,7 +154,15 @@ importers:
 
   packages/knowledge-engine: {}
 
-  packages/model-providers: {}
+  packages/model-providers:
+    dependencies:
+      '@keel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
 
   packages/node: {}
 
