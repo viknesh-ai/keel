@@ -1,0 +1,237 @@
+@import "@keel/ui/styles.css";
+
+/* Northwind Cloud. Uses Keel's design system, but this is the *customer's*
+   product — it deliberately reads as its own thing, light by default. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-13);
+  -webkit-font-smoothing: antialiased;
+}
+
+.nw-skip {
+  position: absolute;
+  left: var(--space-2);
+  top: -48px;
+  z-index: 200;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.nw-skip:focus-visible {
+  top: var(--space-2);
+}
+
+.nw-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  height: 52px;
+  padding: 0 var(--space-6);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.nw-brand {
+  font-weight: 600;
+  font-size: var(--font-size-14);
+}
+
+.nw-nav {
+  display: flex;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.nw-nav__link {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.nw-nav__link:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.nw-nav__link--active {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.nw-who {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-12);
+}
+
+.nw-main {
+  padding: var(--space-6);
+  max-width: 1100px;
+  margin: 0 auto;
+  outline: none;
+}
+
+.nw-title {
+  margin: 0 0 var(--space-6);
+  font-size: var(--font-size-20);
+  font-weight: 600;
+}
+
+.nw-heading {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: var(--font-size-13);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.nw-sub {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-12);
+}
+
+.nw-link {
+  color: var(--text-link);
+  text-decoration: none;
+}
+.nw-link:hover {
+  text-decoration: underline;
+}
+
+.nw-back {
+  display: inline-block;
+  margin-bottom: var(--space-3);
+  font-size: var(--font-size-12);
+}
+
+.nw-filters {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+.nw-filters > :first-child {
+  max-width: 320px;
+}
+
+.nw-stack {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.nw-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+.nw-table th,
+.nw-table td {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+
+.nw-table th {
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: var(--font-size-12);
+}
+
+.nw-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.nw-stale {
+  color: var(--warning-subtle-text);
+}
+
+.nw-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.nw-actions {
+  margin-top: var(--space-3);
+}
+
+.nw-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.nw-stat {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.nw-stat__label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-12);
+}
+
+/* Doc 05 §E4 bans hero numbers above 32px, and this is the ceiling. */
+.nw-stat__value {
+  font-size: var(--font-size-24);
+  font-weight: 600;
+}
+
+.nw-login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--space-4);
+}
+
+.nw-login__card {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 380px;
+  padding: var(--space-8);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.nw-login__title {
+  margin: 0;
+  font-size: var(--font-size-20);
+  font-weight: 600;
+}
+
+.nw-field {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--font-size-12);
+  color: var(--text-secondary);
+}
+
+.nw-error {
+  margin: 0;
+  color: var(--danger-subtle-text);
+  font-size: var(--font-size-12);
+}

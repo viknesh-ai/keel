@@ -45,7 +45,7 @@
       }
     },
     {
-      "includes": ["**/src/routes/**/*.tsx"],
+      "includes": ["**/src/routes/**/*.tsx", "**/src/pages/**/*.tsx"],
       "linter": {
         "rules": {
           "style": {

@@ -1,0 +1,841 @@
+openapi: 3.1.0
+
+info:
+  title: Northwind Cloud API
+  version: "1.0.0"
+  summary: B2B subscription management for the Northwind Cloud demo product.
+  description: |
+    Northwind Cloud is the demo product Keel governs. This spec is hand-written
+    rather than generated: it is the contract Keel imports to derive tool
+    definitions, so its `operationId`s, descriptions and response schemas are
+    load-bearing rather than incidental.
+
+    Two things a reader should notice, because they are what the import path
+    depends on:
+
+    - Every operation has an `operationId` and a `description`. The description
+      is the single biggest lever on tool-selection accuracy, so each one says
+      what the operation returns and when to reach for it, not just its verb.
+    - Every response has a complete schema. An operation whose 200 is an
+      untyped object cannot be turned into a tool contract with a real output
+      schema, and would defeat argument validation downstream.
+
+servers:
+  - url: http://localhost:4000
+    description: Local development
+
+tags:
+  - name: Customers
+    description: The companies subscribing to Northwind Cloud.
+  - name: Subscriptions
+    description: Plan, billing interval and lifecycle state per customer.
+  - name: Invoices
+    description: Issued invoices and their payment state.
+  - name: Orders
+    description: One-off purchases, separate from recurring subscription billing.
+  - name: Usage
+    description: Metered consumption per customer.
+  - name: Auth
+    description: Staff session and identity token issuance.
+
+security:
+  - sessionCookie: []
+  - bearerAuth: []
+
+paths:
+  /api/auth/login:
+    post:
+      operationId: login
+      tags: [Auth]
+      summary: Start a staff session
+      description: >-
+        Exchanges staff credentials for a session cookie. Used by the Northwind
+        web UI. Not used by Keel, which authenticates with a bearer token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Session established; a Set-Cookie header carries the token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Staff"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/logout:
+    post:
+      operationId: logout
+      tags: [Auth]
+      summary: End the current staff session
+      description: Invalidates the session token server-side, not only the cookie.
+      responses:
+        "204":
+          description: Session ended.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/me:
+    get:
+      operationId: getCurrentStaff
+      tags: [Auth]
+      summary: The signed-in staff member
+      description: >-
+        Returns the staff member behind the current session or bearer token.
+        Useful for confirming which principal an agent is acting on behalf of.
+      responses:
+        "200":
+          description: The authenticated staff member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Staff"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/customers:
+    get:
+      operationId: listCustomers
+      tags: [Customers]
+      summary: List customers
+      description: >-
+        Returns customers newest first, with their current subscription
+        summarised inline. Supports filtering by status and by login recency —
+        `inactive_days=30` returns only customers whose last login is older than
+        30 days, or who have never logged in, which is the question support
+        staff ask most often.
+      parameters:
+        - name: status
+          in: query
+          description: Restrict to a single customer status.
+          schema:
+            $ref: "#/components/schemas/CustomerStatus"
+        - name: inactive_days
+          in: query
+          description: >-
+            Return only customers whose last login is older than this many days,
+            or who have never logged in.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 3650
+        - name: plan
+          in: query
+          description: Restrict to customers on a given subscription plan.
+          schema:
+            $ref: "#/components/schemas/Plan"
+        - name: q
+          in: query
+          description: Case-insensitive substring match on name, company or email.
+          schema:
+            type: string
+            maxLength: 200
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of customers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/customers/{customerId}:
+    parameters:
+      - $ref: "#/components/parameters/CustomerId"
+    get:
+      operationId: getCustomer
+      tags: [Customers]
+      summary: Get one customer
+      description: >-
+        A single customer with their current subscription, lifetime invoice
+        totals and last login. This is the operation to use when a question
+        names a specific company or person.
+      responses:
+        "200":
+          description: The customer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/customers/{customerId}/subscription:
+    parameters:
+      - $ref: "#/components/parameters/CustomerId"
+    get:
+      operationId: getSubscription
+      tags: [Subscriptions]
+      summary: Get a customer's subscription
+      description: >-
+        The customer's current subscription including plan, billing interval,
+        MRR and period end. Annual plans mid-term behave differently from
+        monthly ones on cancellation, so the billing interval matters.
+      responses:
+        "200":
+          description: The subscription.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: changeSubscriptionPlan
+      tags: [Subscriptions]
+      summary: Change a customer's plan
+      description: >-
+        Moves the customer to a different plan, taking effect immediately and
+        re-pricing MRR. This changes what the customer is billed, so it is a
+        mutation and requires an idempotency key.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePlanRequest"
+      responses:
+        "200":
+          description: The updated subscription.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/customers/{customerId}/subscription/cancel:
+    parameters:
+      - $ref: "#/components/parameters/CustomerId"
+    post:
+      operationId: cancelSubscription
+      tags: [Subscriptions]
+      summary: Cancel a customer's subscription
+      description: >-
+        Cancels the subscription, either at the end of the current billing
+        period or immediately. Immediate cancellation ends access and is not
+        reversible from this API, so it is the destructive form.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelSubscriptionRequest"
+      responses:
+        "200":
+          description: The cancelled subscription.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/invoices:
+    get:
+      operationId: listInvoices
+      tags: [Invoices]
+      summary: List invoices
+      description: >-
+        Invoices newest first across all customers, or for one customer when
+        `customer_id` is supplied. Filter by `status=open` to find unpaid
+        invoices, which is the usual billing question.
+      parameters:
+        - name: customer_id
+          in: query
+          description: Restrict to a single customer.
+          schema:
+            type: string
+            pattern: "^cus_[0-9a-f]{24}$"
+        - name: status
+          in: query
+          description: Restrict to a single invoice status.
+          schema:
+            $ref: "#/components/schemas/InvoiceStatus"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of invoices.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoicePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/invoices/{invoiceId}:
+    parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: "^inv_[0-9a-f]{24}$"
+    get:
+      operationId: getInvoice
+      tags: [Invoices]
+      summary: Get one invoice
+      description: A single invoice with its amount, currency, status and payment date.
+      responses:
+        "200":
+          description: The invoice.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/orders:
+    get:
+      operationId: listOrders
+      tags: [Orders]
+      summary: List orders
+      description: >-
+        One-off orders newest first, optionally for a single customer. Orders
+        are separate from subscription billing; a refund question about a
+        one-time purchase is answered here, not from invoices.
+      parameters:
+        - name: customer_id
+          in: query
+          description: Restrict to a single customer.
+          schema:
+            type: string
+            pattern: "^cus_[0-9a-f]{24}$"
+        - name: status
+          in: query
+          description: Restrict to a single order status.
+          schema:
+            $ref: "#/components/schemas/OrderStatus"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of orders.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/customers/{customerId}/usage:
+    parameters:
+      - $ref: "#/components/parameters/CustomerId"
+    get:
+      operationId: getCustomerUsage
+      tags: [Usage]
+      summary: Get a customer's metered usage
+      description: >-
+        Totals per metric over a trailing window, defaulting to 30 days. Use
+        this to answer questions about API call volume, seat count or storage
+        consumption.
+      parameters:
+        - name: days
+          in: query
+          description: Size of the trailing window in days.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 30
+      responses:
+        "200":
+          description: Usage totals for the window.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageSummary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/analytics/summary:
+    get:
+      operationId: getAnalyticsSummary
+      tags: [Usage]
+      summary: Account-wide summary
+      description: >-
+        Headline numbers across the whole account: customer counts by status,
+        total MRR normalised to a single currency, open invoice value, and how
+        many customers are inactive. Use this for "how are we doing" questions
+        rather than fetching every customer.
+      responses:
+        "200":
+          description: The summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: northwind_session
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        An EdDSA-signed identity token. Verified against this service's JWKS —
+        the verifier never mints, which is what stops a compromised caller from
+        asserting an arbitrary staff identity.
+
+  parameters:
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      description: The customer's identifier.
+      schema:
+        type: string
+        pattern: "^cus_[0-9a-f]{24}$"
+    Limit:
+      name: limit
+      in: query
+      description: Maximum items to return.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor from the previous page's `next_cursor`.
+      schema:
+        type: string
+        maxLength: 200
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Caller-generated key. Replaying a request with the same key returns the
+        original result instead of applying the change twice.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 200
+
+  responses:
+    BadRequest:
+      description: The request was malformed or a parameter was out of range.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: No valid session or bearer token was supplied.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: Authenticated, but this staff role may not perform the operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: No such resource.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      additionalProperties: false
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+    CustomerStatus:
+      type: string
+      enum: [active, trial, churned, suspended]
+
+    Plan:
+      type: string
+      enum: [free, starter, pro, enterprise]
+
+    BillingInterval:
+      type: string
+      enum: [monthly, annual]
+
+    SubscriptionStatus:
+      type: string
+      enum: [active, trialing, past_due, cancelled]
+
+    InvoiceStatus:
+      type: string
+      enum: [draft, open, paid, void, uncollectible]
+
+    OrderStatus:
+      type: string
+      enum: [pending, fulfilled, refunded, cancelled]
+
+    Currency:
+      type: string
+      enum: [INR, USD, EUR, GBP]
+
+    Money:
+      type: object
+      description: An amount in minor units, with its currency. Never a float.
+      additionalProperties: false
+      required: [amount_minor, currency]
+      properties:
+        amount_minor:
+          type: integer
+          description: Amount in the currency's smallest unit, e.g. paise or cents.
+        currency:
+          $ref: "#/components/schemas/Currency"
+
+    Staff:
+      type: object
+      additionalProperties: false
+      required: [id, email, name, role]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+          enum: [owner, support, finance, readonly]
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+
+    Customer:
+      type: object
+      additionalProperties: false
+      required:
+        [id, name, email, company, country, status, signed_up_at, last_login_at, plan]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        company:
+          type: string
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2.
+          minLength: 2
+          maxLength: 2
+        status:
+          $ref: "#/components/schemas/CustomerStatus"
+        signed_up_at:
+          type: string
+          format: date-time
+        last_login_at:
+          type: [string, "null"]
+          format: date-time
+          description: Null when the customer has never logged in.
+        plan:
+          oneOf:
+            - $ref: "#/components/schemas/Plan"
+            - type: "null"
+          description: Current plan, or null when there is no subscription.
+
+    CustomerDetail:
+      allOf:
+        - $ref: "#/components/schemas/Customer"
+        - type: object
+          additionalProperties: false
+          required: [subscription, invoice_totals]
+          properties:
+            subscription:
+              oneOf:
+                - $ref: "#/components/schemas/Subscription"
+                - type: "null"
+            invoice_totals:
+              type: object
+              additionalProperties: false
+              required: [paid, open]
+              properties:
+                paid:
+                  $ref: "#/components/schemas/Money"
+                open:
+                  $ref: "#/components/schemas/Money"
+
+    Subscription:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          customer_id,
+          plan,
+          billing_interval,
+          status,
+          mrr,
+          started_at,
+          current_period_end,
+          cancel_at_period_end,
+        ]
+      properties:
+        id:
+          type: string
+        customer_id:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+        billing_interval:
+          $ref: "#/components/schemas/BillingInterval"
+        status:
+          $ref: "#/components/schemas/SubscriptionStatus"
+        mrr:
+          $ref: "#/components/schemas/Money"
+        started_at:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        cancel_at_period_end:
+          type: boolean
+        cancelled_at:
+          type: [string, "null"]
+          format: date-time
+
+    ChangePlanRequest:
+      type: object
+      additionalProperties: false
+      required: [plan]
+      properties:
+        plan:
+          $ref: "#/components/schemas/Plan"
+        billing_interval:
+          $ref: "#/components/schemas/BillingInterval"
+
+    CancelSubscriptionRequest:
+      type: object
+      additionalProperties: false
+      required: [when]
+      properties:
+        when:
+          type: string
+          enum: [period_end, immediately]
+          description: >-
+            `period_end` keeps access until the current period ends.
+            `immediately` ends access now and cannot be undone here.
+        reason:
+          type: string
+          maxLength: 500
+
+    Invoice:
+      type: object
+      additionalProperties: false
+      required: [id, customer_id, number, amount, status, issued_at, due_at, paid_at]
+      properties:
+        id:
+          type: string
+        customer_id:
+          type: string
+        number:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        status:
+          $ref: "#/components/schemas/InvoiceStatus"
+        issued_at:
+          type: string
+          format: date-time
+        due_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: [string, "null"]
+          format: date-time
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [id, customer_id, reference, amount, status, placed_at, fulfilled_at]
+      properties:
+        id:
+          type: string
+        customer_id:
+          type: string
+        reference:
+          type: string
+        amount:
+          $ref: "#/components/schemas/Money"
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        placed_at:
+          type: string
+          format: date-time
+        fulfilled_at:
+          type: [string, "null"]
+          format: date-time
+
+    UsageSummary:
+      type: object
+      additionalProperties: false
+      required: [customer_id, window_days, metrics]
+      properties:
+        customer_id:
+          type: string
+        window_days:
+          type: integer
+        metrics:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [metric, total]
+            properties:
+              metric:
+                type: string
+                enum: [api_calls, seats, storage_gb, exports]
+              total:
+                type: integer
+
+    AnalyticsSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [customers_by_status, total_mrr, open_invoice_value, inactive_30d, generated_at]
+      properties:
+        customers_by_status:
+          type: object
+          additionalProperties: false
+          required: [active, trial, churned, suspended]
+          properties:
+            active:
+              type: integer
+            trial:
+              type: integer
+            churned:
+              type: integer
+            suspended:
+              type: integer
+        total_mrr:
+          $ref: "#/components/schemas/Money"
+        open_invoice_value:
+          $ref: "#/components/schemas/Money"
+        inactive_30d:
+          type: integer
+          description: Customers whose last login is older than 30 days, or who never logged in.
+        generated_at:
+          type: string
+          format: date-time
+
+    PageInfo:
+      type: object
+      additionalProperties: false
+      required: [next_cursor, has_more]
+      properties:
+        next_cursor:
+          type: [string, "null"]
+        has_more:
+          type: boolean
+
+    CustomerPage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Customer"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+
+    InvoicePage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+
+    OrderPage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+        page:
+          $ref: "#/components/schemas/PageInfo"
