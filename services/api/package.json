@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@keel/contracts": "workspace:*",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "@keel/identity": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

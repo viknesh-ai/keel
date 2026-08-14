@@ -1,5 +1,10 @@
 // @keel/node
-// Server-side SDK for headless agent runs and configuration.
-//
-// Scaffold only. No implementation yet — see docs/build/session-prompts.md.
-export {};
+// Server-side SDK: action-token verification middleware for a customer backend.
+
+export {
+  createVerifier,
+  keelFastifyVerifier,
+  keelVerifier,
+  type VerifierOptions,
+  type VerifierRequest,
+} from "./verify-middleware.js";

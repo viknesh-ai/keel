@@ -90,6 +90,9 @@ importers:
       '@keel/identity':
         specifier: workspace:*
         version: link:../../packages/identity
+      '@keel/node':
+        specifier: workspace:*
+        version: link:../../packages/node
       '@keel/react':
         specifier: workspace:*
         version: link:../../packages/react
@@ -160,6 +163,9 @@ importers:
       '@keel/api':
         specifier: workspace:*
         version: link:../../services/api
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../identity
       '@types/node':
         specifier: ^22.9.0
         version: 22.20.1
@@ -202,7 +208,18 @@ importers:
         specifier: ^22.9.0
         version: 22.20.1
 
-  packages/node: {}
+  packages/node:
+    dependencies:
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../identity
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
 
   packages/policy-engine:
     dependencies:
@@ -350,6 +367,9 @@ importers:
       '@keel/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       pg:
         specifier: ^8.13.1
         version: 8.23.0

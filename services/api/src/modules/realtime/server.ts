@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import {
+  type ActionKeypair,
+  actionJwks,
+  generateActionKeypair,
+  type IdentityConfig,
+  InMemoryReplayCache,
+  verifyIdentityToken,
+} from "@keel/identity";
 import type { AguiEvent } from "./events.js";
 import { cancelRun, emit, endRun, getRun, type LiveRun, startRun } from "./registry.js";
 import { encodeFrame, framesAfter, KEEPALIVE, SSE_HEADERS } from "./sse.js";
@@ -21,15 +29,37 @@ import { encodeFrame, framesAfter, KEEPALIVE, SSE_HEADERS } from "./sse.js";
  * resume, and cancellation reaching the server.
  */
 
-export type Sessions = Map<string, { id: string; anonymous: boolean; expires_at: number }>;
+export type Sessions = Map<
+  string,
+  {
+    id: string;
+    anonymous: boolean;
+    expires_at: number;
+    subject?: string;
+    identity_jti?: string;
+  }
+>;
 
 export type RealtimeDeps = {
-  /** Drives one run, emitting events. Replaced with the agent runtime in 1.11. */
+  /** Drives one run, emitting events. Replaced with the agent runtime later. */
   readonly drive: (
     run: LiveRun,
     message: string,
     emitEvent: (e: AguiEvent) => void,
   ) => Promise<void>;
+  /**
+   * The project's identity configuration. When present, a supplied
+   * identity_token is *verified* rather than merely observed.
+   *
+   * Absent, the endpoint serves anonymous sessions only and refuses a supplied
+   * token outright — "no configuration" must never mean "believe whatever you
+   * are told".
+   */
+  readonly identity?: IdentityConfig;
+  /** A local key set, for tests. Production resolves the customer's JWKS. */
+  readonly identityKeys?: { keys: unknown[] };
+  /** A persisted signing keypair. Ephemeral by default. */
+  readonly actionKeypair?: ActionKeypair;
 };
 
 const json = (res: ServerResponse, status: number, body: unknown): void => {
@@ -91,6 +121,19 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
 } {
   const sessions: Sessions = new Map();
   const conversations = new Set<string>();
+  const replayCache = new InMemoryReplayCache();
+
+  // Generated once, lazily. A deployment supplies a persisted keypair; an
+  // ephemeral one is the right default because it makes it impossible to ship a
+  // signing key by accident.
+  let keypair: Promise<ActionKeypair> | undefined;
+  const actionKeys = (): Promise<ActionKeypair> => {
+    keypair ??=
+      deps.actionKeypair === undefined
+        ? generateActionKeypair()
+        : Promise.resolve(deps.actionKeypair);
+    return keypair;
+  };
 
   const server = createServer((req, res) => {
     void handle(req, res).catch(() => problem(res, 500, "internal error"));
@@ -101,15 +144,50 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
     const path = url.pathname;
     const sessionId = req.headers["x-keel-session"];
 
+    // Keel's public keys, so a customer backend can verify our action tokens.
+    if (req.method === "GET" && path === "/.well-known/jwks.json") {
+      return json(res, 200, await actionJwks(await actionKeys()));
+    }
+
     if (req.method === "POST" && path === "/rt/v1/sessions") {
       const body = await readBody(req);
-      // An identity token would be verified here via @keel/identity. Absent one,
-      // the session is anonymous and second-class — never elevated by default.
-      const anonymous = typeof body["identity_token"] !== "string";
+      const supplied = body["identity_token"];
+
+      // No token: an anonymous session, second-class by construction.
+      if (typeof supplied !== "string") {
+        const session = {
+          id: `sess_${randomUUID()}`,
+          anonymous: true,
+          expires_at: Math.floor(Date.now() / 1000) + 1800,
+        };
+        sessions.set(session.id, session);
+        return json(res, 201, session);
+      }
+
+      // A token was supplied, so it is verified. Falling back to an anonymous
+      // session here would be worse than refusing: the caller believes they are
+      // authenticated and the platform believes they are not.
+      if (deps.identity === undefined) {
+        return problem(res, 401, "this project has no identity configuration");
+      }
+
+      const verified = await verifyIdentityToken(supplied, deps.identity, {
+        replayCache,
+        ...(deps.identityKeys === undefined ? {} : { localKeys: deps.identityKeys as never }),
+      });
+
+      if (!verified.ok) {
+        // One status for every failure, so an attacker cannot learn which check
+        // rejected them.
+        return problem(res, 401, "the identity token was not accepted");
+      }
+
       const session = {
         id: `sess_${randomUUID()}`,
-        anonymous,
-        expires_at: Math.floor(Date.now() / 1000) + (anonymous ? 1800 : 3600),
+        anonymous: false,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        subject: verified.identity.subject,
+        identity_jti: verified.identity.jti,
       };
       sessions.set(session.id, session);
       return json(res, 201, session);
