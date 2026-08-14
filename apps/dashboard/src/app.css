@@ -210,3 +210,90 @@ body {
   border-radius: var(--radius-sm);
   white-space: nowrap;
 }
+
+/* ------------------------------------------------------------- Run detail */
+
+.d-run__header {
+  margin-bottom: var(--space-6);
+}
+
+.d-run__filters {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+
+.d-run__body {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.d-run__timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.d-run__step {
+  display: grid;
+  grid-template-columns: 28px 16px 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.d-run__step:hover {
+  background: var(--bg-hover);
+}
+.d-run__step--selected {
+  background: var(--bg-selected);
+  border-color: var(--border-default);
+}
+
+.d-run__step-seq {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-12);
+}
+.d-run__step-type {
+  font-size: var(--font-size-13);
+}
+.d-run__step-meta {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-12);
+}
+
+.d-run__detail-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-14);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.d-run__detail-heading {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--font-size-12);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.d-run__redacted {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-12);
+  color: var(--warning-subtle-text);
+}

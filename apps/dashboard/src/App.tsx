@@ -15,6 +15,7 @@ const Activity = lazy(() => import("./routes/Activity.tsx"));
 const Policy = lazy(() => import("./routes/Policy.tsx"));
 const Settings = lazy(() => import("./routes/Settings.tsx"));
 const Styleguide = lazy(() => import("./routes/Styleguide.tsx"));
+const RunDetail = lazy(() => import("./routes/RunDetail.tsx"));
 const NotFound = lazy(() => import("./routes/NotFound.tsx"));
 
 const queryClient = new QueryClient({
@@ -45,6 +46,7 @@ const router = createBrowserRouter([
       { path: "activity", element: page(<Activity />) },
       { path: "policy", element: page(<Policy />) },
       { path: "settings", element: page(<Settings />) },
+      { path: "activity/runs/:runId", element: page(<RunDetail />) },
       { path: "styleguide", element: page(<Styleguide />) },
       { path: "*", element: page(<NotFound />) },
     ],

@@ -26,7 +26,7 @@ export class CorruptStepLogError extends Error {
 }
 
 export function eventOf(step: PersistedStep): RuntimeEvent {
-  const event = step.payload["event"];
+  const event = step.payload.event;
   if (typeof event !== "object" || event === null || !("type" in event)) {
     throw new CorruptStepLogError(step.seq, "payload carries no event");
   }

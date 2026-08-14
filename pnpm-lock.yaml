@@ -84,9 +84,15 @@ importers:
       '@fastify/cookie':
         specifier: ^11.0.2
         version: 11.1.2
+      '@keel/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@keel/identity':
         specifier: workspace:*
         version: link:../../packages/identity
+      '@keel/react':
+        specifier: workspace:*
+        version: link:../../packages/react
       '@keel/scripts':
         specifier: workspace:*
         version: link:../../scripts
@@ -211,7 +217,45 @@ importers:
         specifier: ^3.23.1
         version: 3.23.2
 
-  packages/react: {}
+  packages/react:
+    dependencies:
+      '@keel/client':
+        specifier: workspace:*
+        version: link:../client
+    devDependencies:
+      '@testing-library/dom':
+        specifier: ^10.4.0
+        version: 10.4.1
+      '@testing-library/jest-dom':
+        specifier: ^6.6.3
+        version: 6.10.0(@testing-library/dom@10.4.1)
+      '@testing-library/react':
+        specifier: ^16.1.0
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@testing-library/user-event':
+        specifier: ^14.5.2
+        version: 14.6.4(@testing-library/dom@10.4.1)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.4(@types/react@19.2.18)
+      axe-core:
+        specifier: ^4.10.2
+        version: 4.13.0
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1
+      react:
+        specifier: ^19.0.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.8(react@19.2.8)
 
   packages/tool-runtime:
     devDependencies:
@@ -324,12 +368,18 @@ importers:
       '@keel/api':
         specifier: workspace:*
         version: link:../services/api
+      '@keel/policy-engine':
+        specifier: workspace:*
+        version: link:../packages/policy-engine
       '@keel/scripts':
         specifier: workspace:*
         version: link:../scripts
       pg:
         specifier: ^8.13.1
         version: 8.23.0
+      yaml:
+        specifier: ^2.6.1
+        version: 2.9.0
     devDependencies:
       '@types/node':
         specifier: ^22.9.0
@@ -1979,6 +2029,10 @@ packages:
 
   avvio@9.3.0:
     resolution: {integrity: sha512-g2tQ7LE7oOSqDfwEm3M+ZCMTJc7KiZCdJ4UwyZJb5ckTKyYu50OYmvv0mCFXPuYXoM4zkSt8zM9XQ9KCvxA74A==}
+
+  axe-core@4.13.0:
+    resolution: {integrity: sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==}
+    engines: {node: '>=4'}
 
   baseline-browser-mapping@2.11.13:
     resolution: {integrity: sha512-k9HNuUVMlqVjQ9UHzfPjIqiDbWw7WqT1AoT7GL8VwvF3r0ZfArtgiSPAlmupyNquNgOJHTuH4CKYf8ttMTWBTQ==}
@@ -4636,6 +4690,8 @@ snapshots:
     dependencies:
       '@fastify/error': 4.2.0
       fastq: 1.20.1
+
+  axe-core@4.13.0: {}
 
   baseline-browser-mapping@2.11.13: {}
 

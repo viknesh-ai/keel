@@ -2,6 +2,7 @@ import { ToastProvider, TooltipProvider } from "@keel/ui";
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes } from "react-router-dom";
 import { api, type Staff } from "./api.ts";
+import { KeelWidget } from "./KeelWidget.tsx";
 import AnalyticsPage from "./pages/Analytics.tsx";
 import CustomerDetailPage from "./pages/CustomerDetail.tsx";
 import CustomersPage from "./pages/Customers.tsx";
@@ -81,6 +82,7 @@ export function App() {
                 />
               </Routes>
             </main>
+            <KeelWidget />
           </div>
         </BrowserRouter>
       </ToastProvider>
