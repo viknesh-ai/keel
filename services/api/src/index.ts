@@ -15,6 +15,15 @@ export * as approvalsRepo from "./modules/approvals/approvals.repo.js";
 export * as conversationsRepo from "./modules/conversations/conversations.repo.js";
 export * as identityRepo from "./modules/identity/identity.repo.js";
 export * as agentsRepo from "./modules/projects/agents.repo.js";
+export {
+  type ApprovalDecision,
+  type ApprovalWait,
+  deliverDecision,
+  pendingWait,
+  resetWaits,
+} from "./modules/realtime/approval-waits.js";
+export type { RecordDecision } from "./modules/realtime/approvals-route.js";
+export type { Drive, DriveContext } from "./modules/realtime/drive.js";
 export type { AguiEvent } from "./modules/realtime/events.js";
 export {
   cancelRun,
@@ -25,11 +34,11 @@ export {
   resetRegistry,
   startRun,
 } from "./modules/realtime/registry.js";
+export { scriptedDrive } from "./modules/realtime/scripted-drive.js";
 export {
   createRealtimeServer,
   type RealtimeDeps,
   type Sessions,
-  scriptedDrive,
 } from "./modules/realtime/server.js";
 export {
   encodeFrame,

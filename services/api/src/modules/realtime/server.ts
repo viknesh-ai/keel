@@ -8,25 +8,26 @@ import {
   InMemoryReplayCache,
   verifyIdentityToken,
 } from "@keel/identity";
+import { waitForDecision } from "./approval-waits.js";
+import { handleDecide, type RecordDecision } from "./approvals-route.js";
+import type { Drive, DriveContext } from "./drive.js";
 import type { AguiEvent } from "./events.js";
-import { cancelRun, emit, endRun, getRun, type LiveRun, startRun } from "./registry.js";
+import { json, problem, readBody } from "./http.js";
+import { cancelRun, emit, endRun, getRun, startRun } from "./registry.js";
+import { scriptedDrive } from "./scripted-drive.js";
 import { encodeFrame, framesAfter, KEEPALIVE, SSE_HEADERS } from "./sse.js";
 
 /**
  * The `/rt/v1` surface (doc 05 Part A): sessions, conversations, runs over SSE,
- * cancel.
+ * approval decisions, cancel.
  *
  * Built on node:http rather than a framework. This service is the deployable and
  * will grow a framework when it grows the rest of its HTTP surface; adding one
- * now to serve four endpoints would mean choosing it before the requirements
+ * now to serve five endpoints would mean choosing it before the requirements
  * that should decide it exist.
  *
- * The run driver here is a placeholder in one specific sense, stated plainly:
- * it emits a scripted AG-UI sequence rather than invoking the agent runtime.
- * Wiring the runtime in is session 1.11's job, and the transport has to be
- * provably correct before something real is pushed through it. What is *not*
- * placeholder is everything the session's exit criterion names: ordering,
- * resume, and cancellation reaching the server.
+ * The default driver is scripted rather than the agent runtime — see
+ * scripted-drive.ts, which says exactly what that does and does not cover.
  */
 
 export type Sessions = Map<
@@ -41,12 +42,7 @@ export type Sessions = Map<
 >;
 
 export type RealtimeDeps = {
-  /** Drives one run, emitting events. Replaced with the agent runtime later. */
-  readonly drive: (
-    run: LiveRun,
-    message: string,
-    emitEvent: (e: AguiEvent) => void,
-  ) => Promise<void>;
+  readonly drive: Drive;
   /**
    * The project's identity configuration. When present, a supplied
    * identity_token is *verified* rather than merely observed.
@@ -60,59 +56,14 @@ export type RealtimeDeps = {
   readonly identityKeys?: { keys: unknown[] };
   /** A persisted signing keypair. Ephemeral by default. */
   readonly actionKeypair?: ActionKeypair;
-};
-
-const json = (res: ServerResponse, status: number, body: unknown): void => {
-  const payload = JSON.stringify(body);
-  res.writeHead(status, { "content-type": "application/json" });
-  res.end(payload);
-};
-
-const problem = (res: ServerResponse, status: number, detail: string): void => {
-  res.writeHead(status, { "content-type": "application/problem+json" });
-  res.end(JSON.stringify({ type: "about:blank", title: "Error", status, detail }));
-};
-
-async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  if (chunks.length === 0) return {};
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
-/** The default driver: a realistic read-path sequence, used by the harness. */
-export const scriptedDrive: RealtimeDeps["drive"] = async (run, message, emitEvent) => {
-  emitEvent({ type: "RUN_STARTED", run_id: run.run_id });
-  emitEvent({ type: "ACTIVITY", key: "resolving_intent", state: "started" });
-
-  const callId = `call_${randomUUID().slice(0, 8)}`;
-  emitEvent({ type: "TOOL_CALL_START", call_id: callId, tool: "list_customers" });
-  emitEvent({ type: "ACTIVITY", key: "searching_customers", state: "started" });
-
-  await new Promise((r) => setTimeout(r, 10));
-  if (run.cancelled) return;
-
-  emitEvent({ type: "TOOL_CALL_RESULT", call_id: callId, ok: true });
-  emitEvent({ type: "TOOL_CALL_END", call_id: callId });
-  emitEvent({ type: "ACTIVITY", key: "found_customers", state: "done", params: { count: 43 } });
-
-  const messageId = `msg_${randomUUID().slice(0, 8)}`;
-  emitEvent({ type: "TEXT_MESSAGE_START", message_id: messageId });
-
-  for (const word of `Answering: ${message}`.split(" ")) {
-    // Cancellation is checked between chunks, so a stop actually stops the work
-    // rather than only closing the socket the tokens are travelling down.
-    if (run.cancelled) return;
-    await new Promise((r) => setTimeout(r, 5));
-    emitEvent({ type: "TEXT_MESSAGE_CONTENT", message_id: messageId, delta: `${word} ` });
-  }
-
-  emitEvent({ type: "TEXT_MESSAGE_END", message_id: messageId });
-  emitEvent({ type: "RUN_FINISHED", run_id: run.run_id, state: "Completed" });
+  /**
+   * Persists a decision before the suspended run is woken. Without it the
+   * decision exists only in this process, which is precisely what durable
+   * suspend is not.
+   */
+  readonly recordDecision?: RecordDecision;
+  /** How long a suspended run holds its connection. 30 minutes by default. */
+  readonly approvalTimeoutMs?: number;
 };
 
 export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive }): {
@@ -195,9 +146,9 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
 
     // Everything below requires a session. Nothing is reachable anonymously by
     // accident — an unknown session id is a 401, not a new session.
-    if (typeof sessionId !== "string" || !sessions.has(sessionId)) {
-      return problem(res, 401, "a valid session is required");
-    }
+    if (typeof sessionId !== "string") return problem(res, 401, "a valid session is required");
+    const session = sessions.get(sessionId);
+    if (session === undefined) return problem(res, 401, "a valid session is required");
 
     if (req.method === "POST" && path === "/rt/v1/conversations") {
       const id = `conv_${randomUUID()}`;
@@ -236,11 +187,29 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
         cancelRun(runId);
       });
 
+      const emitEvent = (event: AguiEvent): void => {
+        if (run.cancelled) return;
+        res.write(encodeFrame(emit(run, event)));
+      };
+
+      const ctx: DriveContext = {
+        requestApproval: async ({ approvalId, tool, mode, timeoutMs }) => {
+          // The INTERRUPT goes out first. If the wait were registered after the
+          // event, a decision arriving on a fast second connection would find
+          // nobody listening and the run would hang until its deadline.
+          const wait = { approval_id: approvalId, run_id: runId, session_id: sessionId, mode };
+          const decision = waitForDecision(
+            run,
+            wait,
+            timeoutMs ?? deps.approvalTimeoutMs ?? 1_800_000,
+          );
+          emitEvent({ type: "INTERRUPT", approval_id: approvalId, tool, mode });
+          return decision;
+        },
+      };
+
       try {
-        await deps.drive(run, message, (event) => {
-          if (run.cancelled) return;
-          res.write(encodeFrame(emit(run, event)));
-        });
+        await deps.drive(run, message, emitEvent, ctx);
 
         if (run.cancelled) {
           res.write(
@@ -253,6 +222,18 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
         res.end();
       }
       return;
+    }
+
+    const decideMatch = /^\/rt\/v1\/approvals\/([^/]+)\/decide$/.exec(path);
+    if (req.method === "POST" && decideMatch !== null) {
+      return handleDecide(req, res, {
+        approvalId: decideMatch[1] ?? "",
+        sessionId,
+        // The identity subject when there is one. Never a body field: who
+        // decided is not something the decider gets to assert.
+        decidedBy: session.subject ?? sessionId,
+        ...(deps.recordDecision === undefined ? {} : { recordDecision: deps.recordDecision }),
+      });
     }
 
     const cancelMatch = /^\/rt\/v1\/runs\/([^/]+)\/cancel$/.exec(path);
