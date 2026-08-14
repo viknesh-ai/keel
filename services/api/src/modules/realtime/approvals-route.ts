@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { deliverDecision, pendingWait } from "./approval-waits.js";
 import { json, problem, readBody } from "./http.js";
+import { type Actor, sameActor } from "./ownership.js";
 
 /**
  * `POST /rt/v1/approvals/{id}/decide` (doc 05 Part A).
@@ -25,7 +26,7 @@ export async function handleDecide(
   res: ServerResponse,
   input: {
     readonly approvalId: string;
-    readonly sessionId: string;
+    readonly actor: Actor;
     readonly decidedBy: string;
     readonly recordDecision?: RecordDecision;
   },
@@ -34,7 +35,10 @@ export async function handleDecide(
 
   // Unknown and not-yours are the same answer. Otherwise a session could probe
   // for live approval ids belonging to other users.
-  if (wait === undefined || wait.session_id !== input.sessionId) {
+  //
+  // "Yours" is the same rule reattaching uses: this session, or a new session
+  // for the same identity subject — which is what a page reload produces.
+  if (wait === undefined || !sameActor(wait, input.actor)) {
     return problem(res, 404, "no such approval");
   }
 

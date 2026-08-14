@@ -17,6 +17,7 @@ export {
   KeelProvider,
   type KeelProviderProps,
   type Message,
+  type PendingApproval,
   useKeel,
 } from "./provider.js";
 export { WIDGET_STYLES } from "./styles.js";

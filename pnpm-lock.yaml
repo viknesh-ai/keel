@@ -239,7 +239,16 @@ importers:
       '@keel/client':
         specifier: workspace:*
         version: link:../client
+      '@keel/ui':
+        specifier: workspace:*
+        version: link:../ui
     devDependencies:
+      '@keel/api':
+        specifier: workspace:*
+        version: link:../../services/api
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../identity
       '@testing-library/dom':
         specifier: ^10.4.0
         version: 10.4.1

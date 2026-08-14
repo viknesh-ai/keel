@@ -16,6 +16,12 @@ export type DriveContext = {
     readonly approvalId: string;
     readonly tool: string;
     readonly mode: "confirm" | "approve";
+    /** The four facts the card states, in doc 03 §C4's order. */
+    readonly risk?: string;
+    readonly action?: string;
+    readonly resource?: string;
+    readonly consequence?: string;
+    readonly cost?: string;
     readonly timeoutMs?: number;
   }) => Promise<ApprovalDecision>;
 };

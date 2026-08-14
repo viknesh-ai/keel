@@ -566,3 +566,90 @@
   cursor: pointer;
   border-radius: var(--radius-sm);
 }
+
+/* ------------------------------------------------- action affordances -- */
+/* Three tiers that must be tellable apart at a glance (doc 05 §E6). The
+   distinction is carried by border weight, border colour and background, not
+   by colour alone — a red border and a grey border are the same border to a
+   user who cannot distinguish them. */
+
+.k-action__prose {
+  margin: 0;
+  font-size: var(--font-size-13);
+  color: var(--text-primary);
+}
+
+.k-action {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  padding: var(--space-3);
+}
+
+.k-action--destructive {
+  border-width: 2px;
+  border-color: var(--danger-bg);
+  background: var(--danger-subtle-bg);
+}
+
+.k-action__facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--font-size-12);
+}
+
+.k-action__fact {
+  display: contents;
+}
+
+.k-action__fact dt {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--font-size-12);
+  align-self: center;
+}
+
+.k-action__fact dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.k-action__fact--consequence dd {
+  font-weight: 600;
+  color: var(--danger-subtle-text);
+}
+
+.k-action__controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* ------------------------------------------------------ approvals queue -- */
+
+.k-approvals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.k-approvals__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-12);
+  color: var(--text-secondary);
+}
+
+.k-approvals__refusal {
+  margin: 0;
+  font-size: var(--font-size-12);
+  color: var(--text-secondary);
+}

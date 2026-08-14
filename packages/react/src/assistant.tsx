@@ -1,6 +1,19 @@
+import { ApprovalCard, type RiskTier } from "@keel/ui";
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { activityLabel } from "./i18n.js";
 import { useKeel } from "./provider.js";
+
+/**
+ * Maps the domain's risk levels onto the three affordances.
+ *
+ * Anything the agent classified as high or critical gets the emphasised card
+ * with its consequence stated. Unknown values fall to destructive rather than
+ * to the mildest tier: a risk level this build does not recognise is a server
+ * ahead of the client, and guessing "harmless" is the wrong way to be wrong.
+ */
+function riskTier(risk: string): RiskTier {
+  return risk === "low" || risk === "read" ? "action" : "destructive";
+}
 
 /**
  * The embedded assistant (doc 05 §E6).
@@ -12,8 +25,21 @@ import { useKeel } from "./provider.js";
  * text is announced politely rather than per token.
  */
 
+function approvalLabels(t: ReturnType<typeof useKeel>["t"]) {
+  return {
+    action: t("approval.action"),
+    resource: t("approval.resource"),
+    consequence: t("approval.consequence"),
+    cost: t("approval.cost"),
+    approve: t("approval.approve"),
+    reject: t("approval.reject"),
+    pending: t("approval.pending"),
+  };
+}
+
 export function Assistant() {
-  const { messages, activity, running, error, t, send, stop } = useKeel();
+  const { messages, activity, running, error, approval, deciding, t, send, stop, decide } =
+    useKeel();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -159,6 +185,34 @@ export function Assistant() {
               </div>
             ))}
           </div>
+
+          {approval === null ? null : approval.decidable ? (
+            // The card names itself, so no label here: two nested regions
+            // would make a screen reader announce the same decision twice.
+            <div className="k-widget__approval">
+              <ApprovalCard
+                approvalId={approval.id}
+                risk={riskTier(approval.risk)}
+                action={approval.action ?? t("approval.fallback", { tool: approval.tool })}
+                resource={approval.resource ?? approval.tool}
+                pending={deciding}
+                onApprove={() => void decide("approved")}
+                onReject={() => void decide("rejected")}
+                labels={approvalLabels(t)}
+                {...(approval.consequence === undefined
+                  ? {}
+                  : { consequence: approval.consequence })}
+                {...(approval.cost === undefined ? {} : { cost: approval.cost })}
+              />
+            </div>
+          ) : (
+            // `approve` mode: a different principal decides. Offering this user
+            // buttons that will be refused would be a lie about who is in
+            // control.
+            <section className="k-widget__approval" aria-label={t("a11y.approval")}>
+              <p className="k-widget__approval-note">{t("approval.elsewhere")}</p>
+            </section>
+          )}
 
           {/* Status, not a spinner. Never "Thinking…", never model reasoning. */}
           {/* role="status" carries an implicit aria-live="polite" and, unlike a

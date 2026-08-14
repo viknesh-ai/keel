@@ -22,10 +22,22 @@ export type AguiEvent =
       readonly state: string;
       readonly params?: Record<string, unknown>;
     }
+  /**
+   * A run parked on a human decision (doc 03 §C4).
+   *
+   * The four facts travel with the event because the card must be able to state
+   * the consequence, and a client that has to fetch them separately will render
+   * a "Yes/No" while it waits — which is the exact affordance the design forbids.
+   */
   | {
       readonly type: "INTERRUPT";
       readonly approval_id: string;
       readonly tool: string;
       readonly mode: string;
+      readonly risk?: string;
+      readonly action?: string;
+      readonly resource?: string;
+      readonly consequence?: string;
+      readonly cost?: string;
     }
   | { readonly type: "CUSTOM"; readonly name: string; readonly payload: unknown };

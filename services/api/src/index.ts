@@ -25,14 +25,18 @@ export {
 export type { RecordDecision } from "./modules/realtime/approvals-route.js";
 export type { Drive, DriveContext } from "./modules/realtime/drive.js";
 export type { AguiEvent } from "./modules/realtime/events.js";
+export { type Actor, type Owned, sameActor } from "./modules/realtime/ownership.js";
 export {
   cancelRun,
   emit,
   endRun,
   getRun,
   type LiveRun,
+  publish,
   resetRegistry,
+  type Subscriber,
   startRun,
+  subscribe,
 } from "./modules/realtime/registry.js";
 export { scriptedDrive } from "./modules/realtime/scripted-drive.js";
 export {

@@ -13,9 +13,10 @@ import { handleDecide, type RecordDecision } from "./approvals-route.js";
 import type { Drive, DriveContext } from "./drive.js";
 import type { AguiEvent } from "./events.js";
 import { json, problem, readBody } from "./http.js";
-import { cancelRun, emit, endRun, getRun, startRun } from "./registry.js";
+import { handleReattach } from "./reattach-route.js";
+import { cancelRun, endRun, getRun, publish, startRun, subscribe } from "./registry.js";
 import { scriptedDrive } from "./scripted-drive.js";
-import { encodeFrame, framesAfter, KEEPALIVE, SSE_HEADERS } from "./sse.js";
+import { encodeFrame, KEEPALIVE, SSE_HEADERS } from "./sse.js";
 
 /**
  * The `/rt/v1` surface (doc 05 Part A): sessions, conversations, runs over SSE,
@@ -165,46 +166,60 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
       const message = typeof body["message"] === "string" ? body["message"] : "";
 
       const runId = `run_${randomUUID()}`;
-      const run = startRun(runId, sessionId);
+      const run = startRun(runId, sessionId, session.subject ?? null);
 
       res.writeHead(200, SSE_HEADERS);
-      // The run id reaches the client before any event, so a cancel is possible
-      // from the very first frame rather than only after RUN_STARTED arrives.
-      res.write(
-        encodeFrame(emit(run, { type: "CUSTOM", name: "run.id", payload: { run_id: runId } })),
-      );
-
-      const lastEventId =
-        typeof req.headers["last-event-id"] === "string" ? req.headers["last-event-id"] : null;
-      for (const frame of framesAfter(run.frames, lastEventId)) {
-        if (frame.id > 1) res.write(encodeFrame(frame));
-      }
 
       const keepalive = setInterval(() => res.write(KEEPALIVE), 15_000);
-      // The client going away must stop the work, not just the writing.
+      const unsubscribe = subscribe(run, {
+        write: (frame) => res.write(encodeFrame(frame)),
+        close: () => undefined,
+      });
+
+      // The client going away must stop the work, not just the writing —
+      // unless the run is parked on a human decision. A suspended run is not
+      // spending anything, and cancelling it would mean a page reload silently
+      // throws away an approval the user is part-way through answering.
       res.on("close", () => {
         clearInterval(keepalive);
-        cancelRun(runId);
+        unsubscribe();
+        if (!run.suspended && run.subscribers.size === 0) cancelRun(runId);
       });
+
+      // The run id reaches the client before any event, so a cancel is possible
+      // from the very first frame rather than only after RUN_STARTED arrives.
+      publish(run, { type: "CUSTOM", name: "run.id", payload: { run_id: runId } });
 
       const emitEvent = (event: AguiEvent): void => {
         if (run.cancelled) return;
-        res.write(encodeFrame(emit(run, event)));
+        publish(run, event);
       };
 
       const ctx: DriveContext = {
-        requestApproval: async ({ approvalId, tool, mode, timeoutMs }) => {
+        requestApproval: async ({ approvalId, tool, mode, timeoutMs, ...facts }) => {
           // The INTERRUPT goes out first. If the wait were registered after the
           // event, a decision arriving on a fast second connection would find
           // nobody listening and the run would hang until its deadline.
-          const wait = { approval_id: approvalId, run_id: runId, session_id: sessionId, mode };
+          const wait = {
+            approval_id: approvalId,
+            run_id: runId,
+            session_id: sessionId,
+            subject: session.subject ?? null,
+            mode,
+          };
           const decision = waitForDecision(
             run,
             wait,
             timeoutMs ?? deps.approvalTimeoutMs ?? 1_800_000,
           );
-          emitEvent({ type: "INTERRUPT", approval_id: approvalId, tool, mode });
-          return decision;
+          run.suspended = true;
+          emitEvent({ type: "INTERRUPT", approval_id: approvalId, tool, mode, ...facts });
+
+          try {
+            return await decision;
+          } finally {
+            run.suspended = false;
+          }
         },
       };
 
@@ -212,23 +227,32 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
         await deps.drive(run, message, emitEvent, ctx);
 
         if (run.cancelled) {
-          res.write(
-            encodeFrame(emit(run, { type: "RUN_FINISHED", run_id: runId, state: "Cancelled" })),
-          );
+          publish(run, { type: "RUN_FINISHED", run_id: runId, state: "Cancelled" });
         }
       } finally {
         clearInterval(keepalive);
+        unsubscribe();
         endRun(runId);
         res.end();
       }
       return;
     }
 
+    const reattachMatch = /^\/rt\/v1\/runs\/([^/]+)\/stream$/.exec(path);
+    if (req.method === "GET" && reattachMatch !== null) {
+      return handleReattach(res, {
+        runId: reattachMatch[1] ?? "",
+        actor: session,
+        lastEventId:
+          typeof req.headers["last-event-id"] === "string" ? req.headers["last-event-id"] : null,
+      });
+    }
+
     const decideMatch = /^\/rt\/v1\/approvals\/([^/]+)\/decide$/.exec(path);
     if (req.method === "POST" && decideMatch !== null) {
       return handleDecide(req, res, {
         approvalId: decideMatch[1] ?? "",
-        sessionId,
+        actor: session,
         // The identity subject when there is one. Never a body field: who
         // decided is not something the decider gets to assert.
         decidedBy: session.subject ?? sessionId,

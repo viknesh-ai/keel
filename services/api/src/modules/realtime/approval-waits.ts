@@ -19,6 +19,8 @@ export type ApprovalWait = {
   readonly approval_id: string;
   readonly run_id: string;
   readonly session_id: string;
+  /** The identity subject, when the session had one. See ownership.ts. */
+  readonly subject: string | null;
   /** `confirm` is decidable here; `approve` deliberately is not. */
   readonly mode: "confirm" | "approve";
 };

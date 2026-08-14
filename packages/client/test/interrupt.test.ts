@@ -288,3 +288,129 @@ describe("a suspended run cannot hang forever", () => {
     expect(outcome.decision).toBe("cancelled");
   });
 });
+
+describe("an approval survives a page reload", () => {
+  const IDENTITY = {
+    issuer: "https://northwind.example",
+    jwksUri: "https://northwind.example/.well-known/jwks.json",
+    audience: "keel:proj_1",
+    algorithms: ["EdDSA"] as const,
+    allowSymmetric: false,
+  };
+
+  async function listenWithIdentity(drive: RealtimeDeps["drive"]) {
+    const { generateIdentityKeypair, jwksFor, mintIdentityToken } = await import("@keel/identity");
+    const keypair = await generateIdentityKeypair("k1");
+
+    await listen({ drive, identity: IDENTITY, identityKeys: (await jwksFor(keypair)) as never });
+
+    // A fresh token per call, which is what the page does after a reload.
+    return (subject: string) => async () =>
+      (
+        await mintIdentityToken(keypair, {
+          subject,
+          issuer: IDENTITY.issuer,
+          audience: IDENTITY.audience,
+        })
+      ).token;
+  }
+
+  it("re-raises the pending INTERRUPT to a new session for the same user", async () => {
+    // The reload case. The browser goes away mid-approval and comes back with a
+    // new session id; what makes it the same user is the identity subject, not
+    // a token squirrelled away in storage.
+    const outcome: { decision?: string; executed?: boolean } = {};
+    const identityFor = await listenWithIdentity(approvalDrive("confirm", outcome, 30_000));
+
+    const before = new KeelClient({
+      endpoint,
+      projectId: "proj_1",
+      identity: identityFor("stf_arun"),
+    });
+
+    let runId = "";
+    before.on("CUSTOM", (e) => {
+      if (e.name === "run.id") runId = (e.payload as { run_id: string }).run_id;
+    });
+    const firstInterrupt = interruptFrom(before);
+    const conversation = await before.createConversation();
+    const firstRun = before.run(conversation.id, "cancel my subscription");
+
+    await firstInterrupt;
+
+    // The tab closes. Not a cancel: the user did not answer, they navigated.
+    before.reset();
+    await firstRun;
+
+    const after = new KeelClient({
+      endpoint,
+      projectId: "proj_1",
+      identity: identityFor("stf_arun"),
+    });
+    const restored = interruptFrom(after);
+    const reattached = after.reattach(runId);
+
+    expect(await restored).toBe("apr_01J000000000000000000000");
+    // Still suspended, still unexecuted — the reload did not answer for anyone.
+    expect(outcome.executed).toBeUndefined();
+
+    await after.decide("apr_01J000000000000000000000", "approved");
+    await reattached;
+
+    expect(outcome.decision).toBe("approved");
+    expect(outcome.executed).toBe(true);
+  });
+
+  it("refuses to reattach a run belonging to a different user", async () => {
+    const outcome: { decision?: string } = {};
+    const identityFor = await listenWithIdentity(approvalDrive("confirm", outcome, 1_000));
+
+    const arun = new KeelClient({
+      endpoint,
+      projectId: "proj_1",
+      identity: identityFor("stf_arun"),
+    });
+    let runId = "";
+    arun.on("CUSTOM", (e) => {
+      if (e.name === "run.id") runId = (e.payload as { run_id: string }).run_id;
+    });
+    const interrupt = interruptFrom(arun);
+    const conversation = await arun.createConversation();
+    const run = arun.run(conversation.id, "cancel");
+    await interrupt;
+
+    const priya = new KeelClient({
+      endpoint,
+      projectId: "proj_1",
+      identity: identityFor("stf_priya"),
+    });
+
+    await expect(priya.reattach(runId)).rejects.toThrow();
+
+    arun.reset();
+    await run;
+  });
+
+  it("refuses to reattach an anonymous run from a new session", async () => {
+    // An anonymous visitor has nothing to prove they are the same visitor, so
+    // honouring this would hand a run's transcript to whoever guessed its id.
+    const outcome: { decision?: string } = {};
+    await listen({ drive: approvalDrive("confirm", outcome, 1_000) });
+
+    const first = client();
+    let runId = "";
+    first.on("CUSTOM", (e) => {
+      if (e.name === "run.id") runId = (e.payload as { run_id: string }).run_id;
+    });
+    const interrupt = interruptFrom(first);
+    const conversation = await first.createConversation();
+    const run = first.run(conversation.id, "cancel");
+    await interrupt;
+
+    const second = client();
+    await expect(second.reattach(runId)).rejects.toThrow();
+
+    first.reset();
+    await run;
+  });
+});
