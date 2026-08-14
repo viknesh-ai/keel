@@ -21,7 +21,10 @@
     "test": "vitest run",
     "generate": "tsx scripts/generate-demo-tools.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@keel/contracts": "workspace:*",
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
     "@types/node": "^22.9.0",
     "yaml": "^2.6.1",

@@ -13,6 +13,12 @@ import { handleDecide, type RecordDecision } from "./approvals-route.js";
 import type { Drive, DriveContext } from "./drive.js";
 import type { AguiEvent } from "./events.js";
 import { json, problem, readBody } from "./http.js";
+import {
+  type IdempotencyStore,
+  InMemoryIdempotencyStore,
+  idempotencyGate,
+  rememberResponse,
+} from "./idempotency-gate.js";
 import { handleReattach } from "./reattach-route.js";
 import { cancelRun, endRun, getRun, publish, startRun, subscribe } from "./registry.js";
 import { scriptedDrive } from "./scripted-drive.js";
@@ -65,6 +71,8 @@ export type RealtimeDeps = {
   readonly recordDecision?: RecordDecision;
   /** How long a suspended run holds its connection. 30 minutes by default. */
   readonly approvalTimeoutMs?: number;
+  /** Backs `Idempotency-Key`. Redis in a deployment; in-memory by default. */
+  readonly idempotencyStore?: IdempotencyStore;
 };
 
 export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive }): {
@@ -74,6 +82,7 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
   const sessions: Sessions = new Map();
   const conversations = new Set<string>();
   const replayCache = new InMemoryReplayCache();
+  const idempotency: IdempotencyStore = deps.idempotencyStore ?? new InMemoryIdempotencyStore();
 
   // Generated once, lazily. A deployment supplies a persisted keypair; an
   // ephemeral one is the right default because it makes it impossible to ship a
@@ -91,7 +100,7 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
     void handle(req, res).catch(() => problem(res, 500, "internal error"));
   });
 
-  async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  async function handle(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
     const sessionId = req.headers["x-keel-session"];
@@ -250,7 +259,18 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
 
     const decideMatch = /^\/rt\/v1\/approvals\/([^/]+)\/decide$/.exec(path);
     if (req.method === "POST" && decideMatch !== null) {
-      return handleDecide(req, res, {
+      // The one mutating JSON endpoint on this surface, so the one that needs
+      // the gate. Cancel is naturally idempotent — stopping a stopped run is
+      // the same as stopping it once — and starting a run returns a stream,
+      // which cannot meaningfully be replayed from a stored body.
+      const gate = await idempotencyGate(req, res, {
+        sessionId,
+        path,
+        store: idempotency,
+      });
+      if (gate.status !== "proceed") return;
+
+      const written = await handleDecide(req, res, {
         approvalId: decideMatch[1] ?? "",
         actor: session,
         // The identity subject when there is one. Never a body field: who
@@ -258,6 +278,12 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
         decidedBy: session.subject ?? sessionId,
         ...(deps.recordDecision === undefined ? {} : { recordDecision: deps.recordDecision }),
       });
+
+      // Recorded whatever the outcome: a repeat of a request that was refused
+      // must be refused the same way, or a client can retry its way past a
+      // decision the server already made.
+      await rememberResponse(idempotency, gate.key, written);
+      return;
     }
 
     const cancelMatch = /^\/rt\/v1\/runs\/([^/]+)\/cancel$/.exec(path);

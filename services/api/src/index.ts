@@ -25,6 +25,15 @@ export {
 export type { RecordDecision } from "./modules/realtime/approvals-route.js";
 export type { Drive, DriveContext } from "./modules/realtime/drive.js";
 export type { AguiEvent } from "./modules/realtime/events.js";
+export {
+  CLAIM_TTL_SECONDS,
+  IDEMPOTENCY_TTL_SECONDS,
+  type IdempotencyStore,
+  InMemoryIdempotencyStore,
+  idempotencyGate,
+  rememberResponse,
+  scopeKey,
+} from "./modules/realtime/idempotency-gate.js";
 export { type Actor, type Owned, sameActor } from "./modules/realtime/ownership.js";
 export {
   cancelRun,

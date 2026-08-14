@@ -247,10 +247,17 @@ export class KeelClient {
     await this.#consume(response.body, signal);
   }
 
-  /** Answers a pending approval. `confirm` mode only; see doc 03 §C4. */
+  /**
+   * Answers a pending approval. `confirm` mode only; see doc 03 §C4.
+   *
+   * The idempotency key is minted here, per call, so a retry of *this* request
+   * replays rather than deciding twice — while a genuinely new decision, made
+   * after the first was refused, gets its own key.
+   */
   async decide(approvalId: string, decision: "approved" | "rejected"): Promise<void> {
     await this.#request(`/rt/v1/approvals/${approvalId}/decide`, {
       method: "POST",
+      headers: { "idempotency-key": newKey() },
       body: JSON.stringify({ decision }),
     });
   }
@@ -313,6 +320,16 @@ export class KeelClient {
     this.#lastEventId = null;
     this.#emitter.clear();
   }
+}
+
+/** A unique key per user action. `randomUUID` exists in browsers and Node 22. */
+function newKey(): string {
+  const c = globalThis.crypto;
+  if (typeof c?.randomUUID === "function") return c.randomUUID();
+  // Older embedded webviews. Collision risk is irrelevant here: the key is
+  // scoped to one session and one path, and only has to be unique against that
+  // session's own recent requests.
+  return `k_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
 /** Parses one SSE frame. Returns undefined for comments and keep-alives. */

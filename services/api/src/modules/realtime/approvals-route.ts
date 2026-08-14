@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { deliverDecision, pendingWait } from "./approval-waits.js";
-import { json, problem, readBody } from "./http.js";
+import { json, problem, readBody, type Written } from "./http.js";
 import { type Actor, sameActor } from "./ownership.js";
 
 /**
@@ -30,7 +30,7 @@ export async function handleDecide(
     readonly decidedBy: string;
     readonly recordDecision?: RecordDecision;
   },
-): Promise<void> {
+): Promise<Written> {
   const wait = pendingWait(input.approvalId);
 
   // Unknown and not-yours are the same answer. Otherwise a session could probe

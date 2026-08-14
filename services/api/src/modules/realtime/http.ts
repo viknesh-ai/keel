@@ -2,14 +2,21 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 /** The three primitives every handler in this module needs. */
 
-export function json(res: ServerResponse, status: number, body: unknown): void {
+export function json(res: ServerResponse, status: number, body: unknown): Written {
+  const payload = JSON.stringify(body);
   res.writeHead(status, { "content-type": "application/json" });
-  res.end(JSON.stringify(body));
+  res.end(payload);
+  return { status, body: payload };
 }
 
-export function problem(res: ServerResponse, status: number, detail: string): void {
+/** What was actually sent, so an idempotent replay can send it again. */
+export type Written = { readonly status: number; readonly body: string };
+
+export function problem(res: ServerResponse, status: number, detail: string): Written {
+  const payload = JSON.stringify({ type: "about:blank", title: "Error", status, detail });
   res.writeHead(status, { "content-type": "application/problem+json" });
-  res.end(JSON.stringify({ type: "about:blank", title: "Error", status, detail }));
+  res.end(payload);
+  return { status, body: payload };
 }
 
 export async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {

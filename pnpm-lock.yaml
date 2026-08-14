@@ -284,6 +284,13 @@ importers:
         version: 19.2.8(react@19.2.8)
 
   packages/tool-runtime:
+    dependencies:
+      '@keel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^22.9.0
@@ -400,6 +407,9 @@ importers:
       '@keel/api':
         specifier: workspace:*
         version: link:../services/api
+      '@keel/contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
       '@keel/identity':
         specifier: workspace:*
         version: link:../packages/identity
@@ -409,6 +419,9 @@ importers:
       '@keel/scripts':
         specifier: workspace:*
         version: link:../scripts
+      '@keel/tool-runtime':
+        specifier: workspace:*
+        version: link:../packages/tool-runtime
       pg:
         specifier: ^8.13.1
         version: 8.23.0

@@ -74,7 +74,11 @@ function interruptFrom(c: KeelClient): Promise<string> {
 const decide = (sessionId: string, approvalId: string, body: unknown) =>
   fetch(`${endpoint}/rt/v1/approvals/${approvalId}/decide`, {
     method: "POST",
-    headers: { "x-keel-session": sessionId, "content-type": "application/json" },
+    headers: {
+      "x-keel-session": sessionId,
+      "content-type": "application/json",
+      "idempotency-key": `test_${Math.random().toString(36).slice(2)}`,
+    },
     body: JSON.stringify(body),
   });
 
