@@ -11,6 +11,7 @@ export {
   withActorScope,
   withOrgScope,
 } from "./db/scope.js";
+export * as approvalsRepo from "./modules/approvals/approvals.repo.js";
 export * as conversationsRepo from "./modules/conversations/conversations.repo.js";
 export * as identityRepo from "./modules/identity/identity.repo.js";
 export * as agentsRepo from "./modules/projects/agents.repo.js";
@@ -24,7 +25,6 @@ export {
   resetRegistry,
   startRun,
 } from "./modules/realtime/registry.js";
-
 export {
   createRealtimeServer,
   type RealtimeDeps,

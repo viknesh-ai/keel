@@ -67,6 +67,10 @@ export type RuntimeEvent =
   | { readonly type: "tool_selected" }
   | { readonly type: "authorized" }
   | { readonly type: "denied"; readonly rule_id: string }
+  | { readonly type: "approval_required"; readonly approval_id: string; readonly mode: string }
+  | { readonly type: "approval_granted"; readonly approval_id: string }
+  | { readonly type: "approval_rejected"; readonly approval_id: string }
+  | { readonly type: "approval_expired"; readonly approval_id: string }
   | { readonly type: "tool_executed" }
   | { readonly type: "observation_ok" }
   | { readonly type: "observation_failed"; readonly error_class: ErrorClass }
@@ -142,12 +146,22 @@ export function transition(state: RunState, event: RuntimeEvent): RunState {
 
     case "Authorizing":
       if (event.type === "authorized") return "Executing";
+      // The run suspends here. Nothing is held in memory: the approval row is
+      // the state, so a restarted process resumes from it (doc 03 §C4).
+      if (event.type === "approval_required") return "AwaitingApproval";
       // Denied is terminal, and the run still owes the user an explanation —
       // composed deterministically from the typed decision when the state is
       // entered, never by asking the model to guess why it failed (doc 01 §4.3).
       // Routing it through Responding would mean a model call, which is both
       // unnecessary and wrong when the denial *was* the budget running out.
       if (event.type === "denied") return "Denied";
+      break;
+
+    case "AwaitingApproval":
+      if (event.type === "approval_granted") return "Executing";
+      // A rejection is a denial, and gets the same explanation path.
+      if (event.type === "approval_rejected") return "Denied";
+      if (event.type === "approval_expired") return "Expired";
       break;
 
     case "Executing":
@@ -201,6 +215,11 @@ export function stepTypeFor(event: RuntimeEvent): string {
       return "verify";
     case "responded":
       return "response";
+    case "approval_required":
+    case "approval_granted":
+    case "approval_rejected":
+    case "approval_expired":
+      return "approval";
     case "cancelled":
     case "failed":
       return "recover";

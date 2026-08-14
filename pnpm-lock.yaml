@@ -385,9 +385,15 @@ importers:
 
   tests:
     dependencies:
+      '@keel/agent-runtime':
+        specifier: workspace:*
+        version: link:../packages/agent-runtime
       '@keel/api':
         specifier: workspace:*
         version: link:../services/api
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../packages/identity
       '@keel/policy-engine':
         specifier: workspace:*
         version: link:../packages/policy-engine
