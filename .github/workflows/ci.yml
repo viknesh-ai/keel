@@ -253,6 +253,40 @@ jobs:
             exit 1
           fi
 
+  openapi-tools:
+    name: Generated tool contracts are current and disabled
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Generation is deterministic; a diff here means the spec changed and the
+      # contracts were not regenerated, so the catalogue no longer describes the
+      # API the agent would actually call.
+      - name: Regenerating produces no diff
+        run: |
+          pnpm --filter @keel/tool-runtime generate
+          if ! git diff --quiet -- apps/demo-saas/keel/tools; then
+            echo "::error::Generated tool contracts are stale. Run 'pnpm --filter @keel/tool-runtime generate' and commit."
+            git --no-pager diff -- apps/demo-saas/keel/tools
+            exit 1
+          fi
+
+      # Default-deny on the artifact itself, not only in the generator's tests.
+      - name: Nothing is enabled by default
+        run: |
+          if grep -q "enabled: true" apps/demo-saas/keel/tools/northwind.yaml; then
+            echo "::error::A generated tool contract is enabled by default."
+            grep -n -B4 "enabled: true" apps/demo-saas/keel/tools/northwind.yaml
+            exit 1
+          fi
+          echo "All generated operations are disabled."
+
   boundary-guard:
     name: Boundary rule is actually enforced
     runs-on: ubuntu-latest
