@@ -1,7 +1,8 @@
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { generateIdentityKeypair, jwksFor, type Keypair, mintIdentityToken } from "@keel/identity";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { exportJWK, generateKeyPair, type JWK, jwtVerify, type KeyLike, SignJWT } from "jose";
+import { type JWK, jwtVerify } from "jose";
 import { config } from "./config.js";
 import { query, queryOne } from "./db.js";
 import { unauthorized } from "./problem.js";
@@ -84,32 +85,45 @@ async function staffForSession(token: string): Promise<StaffRow | undefined> {
  * demo, an ephemeral key is *better* — it makes it impossible to accidentally
  * ship a signing key that someone treats as trustworthy.
  */
-let keyPair: { publicKey: KeyLike; privateKey: KeyLike } | null = null;
+let keyPair: Keypair | null = null;
 const KEY_ID = "northwind-demo-1";
 
-async function keys() {
-  if (keyPair === null) keyPair = await generateKeyPair("EdDSA", { extractable: true });
+async function keys(): Promise<Keypair> {
+  if (keyPair === null) keyPair = await generateIdentityKeypair(KEY_ID);
   return keyPair;
 }
 
 export async function publicJwks(): Promise<{ keys: JWK[] }> {
-  const { publicKey } = await keys();
-  const jwk = await exportJWK(publicKey);
-  return { keys: [{ ...jwk, kid: KEY_ID, use: "sig", alg: "EdDSA" }] };
+  return jwksFor(await keys());
 }
 
-/** Short-lived by design: 10 minutes, per doc 02 §2.1. */
+/**
+ * Minted through @keel/identity rather than by hand.
+ *
+ * That is the point of shipping a helper: the customer's integration and the
+ * platform's verifier agree by construction, so a five-minute integration stays
+ * five minutes and nobody reaches for a shared secret because the correct path
+ * was fiddly. The helper enforces the same 10-minute ceiling the verifier does.
+ */
 export async function issueIdentityToken(staff: StaffRow, audience: string): Promise<string> {
-  const { privateKey } = await keys();
-  return new SignJWT({ email: staff.email, name: staff.name, role: staff.role })
-    .setProtectedHeader({ alg: "EdDSA", kid: KEY_ID })
-    .setIssuer("https://northwind.example")
-    .setAudience(audience)
-    .setSubject(staff.id)
-    .setJti(randomBytes(16).toString("hex"))
-    .setIssuedAt()
-    .setExpirationTime("10m")
-    .sign(privateKey);
+  const { token } = await mintIdentityToken(await keys(), {
+    subject: staff.id,
+    issuer: "https://northwind.example",
+    audience,
+    claims: {
+      email: staff.email,
+      name: staff.name,
+      role: staff.role,
+      // Northwind's staff roles map onto the permissions Keel's policy engine
+      // reads. Sent as claims because the platform must never infer them.
+      permissions:
+        staff.role === "owner" || staff.role === "support"
+          ? ["customers.read", "subscriptions.write"]
+          : ["customers.read"],
+      groups: ["kb:public"],
+    },
+  });
+  return token;
 }
 
 async function staffForBearer(token: string): Promise<StaffRow | undefined> {
