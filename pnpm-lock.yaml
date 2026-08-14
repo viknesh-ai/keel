@@ -189,7 +189,17 @@ importers:
 
   packages/react: {}
 
-  packages/tool-runtime: {}
+  packages/tool-runtime:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.12
+      yaml:
+        specifier: ^2.6.1
+        version: 2.9.0
 
   packages/ui:
     dependencies:
