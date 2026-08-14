@@ -304,7 +304,7 @@ describe("cancellation is a transition, not an exception", () => {
     const snapshot = await run(ports, input(), controller.signal);
 
     expect(snapshot.state).toBe("Cancelled");
-    expect(stepLog.steps.at(-1)?.payload["event"]).toEqual({ type: "cancelled" });
+    expect(stepLog.steps.at(-1)?.payload.event).toEqual({ type: "cancelled" });
   });
 });
 

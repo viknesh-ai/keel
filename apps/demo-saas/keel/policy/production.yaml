@@ -1,0 +1,34 @@
+# Northwind Cloud's policy for the Keel agent.
+#
+# Versioned in git and diffable in review: a policy change and a code change
+# land in the same pull request (doc 03 §C2).
+#
+# Default-deny. A tool absent from these rules is not merely unlisted — it is
+# refused, and never reaches the model's catalogue at all.
+
+version: 1
+defaults:
+  effect: deny
+
+rules:
+  # Read-only access for a staff member who holds customers.read. The permission
+  # comes from the identity token Northwind minted; Keel never infers it.
+  - id: reads-for-support
+    match:
+      tool:
+        risk: read
+    when:
+      principal:
+        authenticated: true
+        permissions:
+          contains: customers.read
+    effect: allow
+
+  # Stated explicitly rather than left to the default, so the reason a reader
+  # sees is the real one.
+  - id: no-mutations-in-slice-one
+    match:
+      tool:
+        side_effect: [write, destructive]
+    effect: deny
+    message: "Changes to subscriptions are not available through the assistant yet."

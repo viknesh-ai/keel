@@ -1,0 +1,20 @@
+# Which generated operations the agent may actually use.
+#
+# Deliberately a separate file from northwind.yaml, which is generated and must
+# stay a faithful projection of the OpenAPI spec — regenerating it produces no
+# diff, and CI enforces that. Enablement is a human decision about risk, so it
+# lives where it can be reviewed on its own rather than as a one-character edit
+# buried in 300 lines of generated schema.
+#
+# Default-deny still applies underneath: an operation listed here is *offered*
+# to the policy engine, which then decides per call and per principal.
+
+keel: "1"
+kind: tool-enablement
+source: apps/demo-saas/keel/tools/northwind.yaml
+
+# Slice 1 is the read-only vertical slice. Three operations, all reads.
+enabled:
+  - listCustomers
+  - getCustomer
+  - listInvoices

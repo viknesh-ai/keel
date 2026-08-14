@@ -11,7 +11,9 @@
   "dependencies": {
     "@keel/scripts": "workspace:*",
     "pg": "^8.13.1",
-    "@keel/api": "workspace:*"
+    "@keel/api": "workspace:*",
+    "@keel/policy-engine": "workspace:*",
+    "yaml": "^2.6.1"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
