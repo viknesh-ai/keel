@@ -84,6 +84,9 @@ importers:
       '@fastify/cookie':
         specifier: ^11.0.2
         version: 11.1.2
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       '@keel/scripts':
         specifier: workspace:*
         version: link:../../scripts
@@ -158,7 +161,15 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
 
-  packages/identity: {}
+  packages/identity:
+    dependencies:
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
 
   packages/knowledge-engine: {}
 
