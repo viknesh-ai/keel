@@ -213,6 +213,46 @@ jobs:
           fi
           echo "Contrast check caught the regression, as expected."
 
+  model-providers:
+    name: Provider contract suite against a real Ollama
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The exit criterion is that the *same* contract suite passes against a
+      # real backend, not a mock. A 0.5B model is enough to exercise the
+      # adapter, which is what is under test — the model's answers are not.
+      - name: Start Ollama and pull a small model
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve > /tmp/ollama.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:11434/api/tags >/dev/null && break
+            sleep 2
+          done
+          ollama pull qwen2.5:0.5b
+
+      # The suite skips when Ollama is absent, which would make this job pass
+      # vacuously. Assert it actually ran.
+      - name: Contract suite must run, not skip
+        run: |
+          output="$(pnpm --filter @keel/model-providers test 2>&1)"
+          echo "$output"
+          if ! grep -q "ollama.test.ts" <<<"$output"; then
+            echo "::error::The Ollama contract suite did not run."
+            exit 1
+          fi
+          if grep -qE "ollama\.test\.ts.*skipped" <<<"$output"; then
+            echo "::error::The Ollama contract suite was skipped — no live evidence was produced."
+            exit 1
+          fi
+
   boundary-guard:
     name: Boundary rule is actually enforced
     runs-on: ubuntu-latest
