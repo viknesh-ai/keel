@@ -14,5 +14,29 @@ export {
 export * as conversationsRepo from "./modules/conversations/conversations.repo.js";
 export * as identityRepo from "./modules/identity/identity.repo.js";
 export * as agentsRepo from "./modules/projects/agents.repo.js";
+export type { AguiEvent } from "./modules/realtime/events.js";
+export {
+  cancelRun,
+  emit,
+  endRun,
+  getRun,
+  type LiveRun,
+  resetRegistry,
+  startRun,
+} from "./modules/realtime/registry.js";
+
+export {
+  createRealtimeServer,
+  type RealtimeDeps,
+  type Sessions,
+  scriptedDrive,
+} from "./modules/realtime/server.js";
+export {
+  encodeFrame,
+  framesAfter,
+  KEEPALIVE,
+  SSE_HEADERS,
+  type SseFrame,
+} from "./modules/realtime/sse.js";
 export * as runsRepo from "./modules/runs/runs.repo.js";
 export * as toolsRepo from "./modules/tools/tools.repo.js";

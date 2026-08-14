@@ -287,6 +287,25 @@ jobs:
           fi
           echo "All generated operations are disabled."
 
+  bundle-size:
+    name: Client bundle stays within budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Doc 05 §E6: @keel/client plus the widget core stays under 45 KB gzipped.
+      # Checked now, while it is easy to stay under — widget weight is a tax on
+      # the customer's Core Web Vitals and it is the first thing a serious
+      # frontend team measures.
+      - name: Measure
+        run: pnpm --filter @keel/client size
+
   boundary-guard:
     name: Boundary rule is actually enforced
     runs-on: ubuntu-latest
