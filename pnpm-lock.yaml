@@ -134,7 +134,15 @@ importers:
         specifier: ^6.0.7
         version: 6.4.3(@types/node@22.20.1)(tsx@4.23.12)(yaml@2.9.0)
 
-  packages/agent-runtime: {}
+  packages/agent-runtime:
+    dependencies:
+      '@keel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
 
   packages/cli: {}
 
