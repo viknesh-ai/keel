@@ -14,6 +14,16 @@ export {
 export * as approvalsRepo from "./modules/approvals/approvals.repo.js";
 export * as conversationsRepo from "./modules/conversations/conversations.repo.js";
 export * as identityRepo from "./modules/identity/identity.repo.js";
+export * as knowledgeRepo from "./modules/knowledge/knowledge.repo.js";
+export {
+  ACL_PREDICATE,
+  aclPredicate,
+  countExcludedByAcl,
+  type Principal,
+  type RetrievedChunk,
+  type RetrieveInput,
+  retrieve,
+} from "./modules/knowledge/retrieval.repo.js";
 export * as agentsRepo from "./modules/projects/agents.repo.js";
 export {
   type ApprovalDecision,
