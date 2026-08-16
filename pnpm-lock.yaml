@@ -196,7 +196,11 @@ importers:
         specifier: ^22.9.0
         version: 22.20.1
 
-  packages/knowledge-engine: {}
+  packages/knowledge-engine:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
 
   packages/model-providers:
     dependencies:
