@@ -2,6 +2,16 @@
 // Ingestion pipeline and retrieval planner.
 
 export {
+  type CrawlError,
+  type CrawledPage,
+  type CrawlOptions,
+  type CrawlResult,
+  crawl,
+  extractLinks,
+  extractSitemapUrls,
+  normalise,
+} from "./fetch/crawler.js";
+export {
   checkAddress,
   checkIpv4,
   checkIpv6,
@@ -10,6 +20,12 @@ export {
   parseIpv6,
 } from "./fetch/ip-rules.js";
 export {
+  isAllowed,
+  PERMISSIVE,
+  parseRobots,
+  type RobotsRules,
+} from "./fetch/robots.js";
+export {
   judgeAddresses,
   type Resolver,
   type SafeFetchDenial,
@@ -17,6 +33,18 @@ export {
   type SafeFetchResult,
   safeFetch,
 } from "./fetch/safe-fetch.js";
+export {
+  docxToMarkdown,
+  type ParseResult,
+  parseCsv,
+  parseDocument,
+  parseDocx,
+  parseHtml,
+  parseJson,
+  parseMarkdown,
+  parsePdf,
+  parseText,
+} from "./parse/parsers.js";
 export {
   type Chunk,
   type ChunkOptions,
