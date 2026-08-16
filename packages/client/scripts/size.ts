@@ -1,3 +1,5 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 
@@ -20,6 +22,22 @@ import { build } from "esbuild";
  */
 const BUDGET_BYTES = 45 * 1024;
 
+const packages = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+/**
+ * Workspace packages are resolved to their **sources**, not their `dist`.
+ *
+ * Two reasons, and the second is why this is not merely convenient. A `dist`
+ * makes the measurement depend on a build having happened first, which is how
+ * this check failed in CI while passing locally off a stale directory. And a
+ * `dist` that is out of date would report a budget for code nobody is shipping —
+ * a check that can be satisfied by not rebuilding is not a check.
+ */
+const alias = {
+  "@keel/client": join(packages, "client", "src", "index.ts"),
+  "@keel/ui": join(packages, "ui", "src", "index.ts"),
+};
+
 async function measure(entry: string, external: readonly string[]): Promise<number> {
   const result = await build({
     entryPoints: [entry],
@@ -29,6 +47,7 @@ async function measure(entry: string, external: readonly string[]): Promise<numb
     platform: "browser",
     target: "es2022",
     external: [...external],
+    alias,
     write: false,
   });
 
