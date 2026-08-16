@@ -78,6 +78,37 @@ button:focus-visible, input:focus-visible {
 .k-msg__text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .k-msg--user .k-msg__text { color: var(--keel-fg); }
 
+/* Action affordances (doc 05 §E6). The widget carries its own rules for the
+   card's classes because it is themed through --keel-* custom properties the
+   host sets, not through the dashboard's token file. Same markup, same class
+   contract, different surface. */
+.k-widget__approval { padding: 0 16px 12px; }
+.k-widget__approval-note { margin: 0; font-size: 12px; color: var(--keel-muted); }
+
+.k-action__prose { margin: 0; }
+.k-action {
+  border: 1px solid var(--keel-border); border-radius: var(--keel-radius);
+  padding: 12px; background: var(--keel-bg);
+}
+/* Weight, colour and fill all change. A destructive card that differed only in
+   colour would be the same card to a user who cannot distinguish them. */
+.k-action--destructive { border-width: 2px; border-color: #b3261e; background: #fdeceb; }
+
+.k-action__facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; }
+.k-action__fact { display: contents; }
+.k-action__fact dt { color: var(--keel-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.k-action__fact dd { margin: 0; color: var(--keel-fg); }
+.k-action__fact--consequence dd { font-weight: 600; color: #8c1d18; }
+
+.k-action__controls { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.k-btn {
+  height: 28px; padding: 0 12px; border-radius: 6px; cursor: pointer;
+  font: inherit; border: 1px solid var(--keel-border); background: var(--keel-bg); color: var(--keel-fg);
+}
+.k-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.k-btn--primary { background: var(--keel-accent); color: var(--keel-accent-fg); border-color: transparent; }
+.k-btn--danger { background: #b3261e; color: #ffffff; border-color: transparent; }
+
 .k-widget__status { min-height: 20px; padding: 0 16px; font-size: 12px; color: var(--keel-muted); }
 .k-widget__error { color: #b3261e; }
 

@@ -9,10 +9,14 @@
     "test:int": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
-    "@keel/scripts": "workspace:*",
-    "pg": "^8.13.1",
+    "@keel/agent-runtime": "workspace:*",
     "@keel/api": "workspace:*",
+    "@keel/contracts": "workspace:*",
+    "@keel/identity": "workspace:*",
     "@keel/policy-engine": "workspace:*",
+    "@keel/scripts": "workspace:*",
+    "@keel/tool-runtime": "workspace:*",
+    "pg": "^8.13.1",
     "yaml": "^2.6.1"
   },
   "devDependencies": {

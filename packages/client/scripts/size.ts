@@ -1,9 +1,19 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 
 /**
  * Bundle budget (doc 05 §E6): @keel/client plus the widget core stays under
  * 45 KB gzipped.
+ *
+ * Both halves are measured, because the budget the doc states is for what the
+ * customer's page actually downloads. Measuring only the transport would let
+ * the widget grow without limit while the number in CI stayed reassuring.
+ *
+ * React itself is external: the host page brings it, and charging the widget
+ * for a dependency the customer already ships would make the number meaningless
+ * in the other direction.
  *
  * Checked now, while it is easy to stay under. Widget weight is a tax on the
  * customer's Core Web Vitals and it is the first thing a serious frontend team
@@ -12,32 +22,60 @@ import { build } from "esbuild";
  */
 const BUDGET_BYTES = 45 * 1024;
 
-const result = await build({
-  entryPoints: ["src/index.ts"],
-  bundle: true,
-  minify: true,
-  format: "esm",
-  platform: "browser",
-  target: "es2022",
-  write: false,
-});
+const packages = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-const output = result.outputFiles[0];
-if (output === undefined) {
-  process.stderr.write("error: bundle produced no output\n");
-  process.exit(1);
+/**
+ * Workspace packages are resolved to their **sources**, not their `dist`.
+ *
+ * Two reasons, and the second is why this is not merely convenient. A `dist`
+ * makes the measurement depend on a build having happened first, which is how
+ * this check failed in CI while passing locally off a stale directory. And a
+ * `dist` that is out of date would report a budget for code nobody is shipping —
+ * a check that can be satisfied by not rebuilding is not a check.
+ */
+const alias = {
+  "@keel/client": join(packages, "client", "src", "index.ts"),
+  "@keel/ui": join(packages, "ui", "src", "index.ts"),
+};
+
+async function measure(entry: string, external: readonly string[]): Promise<number> {
+  const result = await build({
+    entryPoints: [entry],
+    bundle: true,
+    minify: true,
+    format: "esm",
+    platform: "browser",
+    target: "es2022",
+    external: [...external],
+    alias,
+    write: false,
+  });
+
+  const output = result.outputFiles[0];
+  if (output === undefined) {
+    process.stderr.write(`error: ${entry} produced no output\n`);
+    process.exit(1);
+  }
+
+  return gzipSync(output.contents).byteLength;
 }
 
-const gzipped = gzipSync(output.contents).byteLength;
-const percent = ((gzipped / BUDGET_BYTES) * 100).toFixed(1);
+const client = await measure("src/index.ts", []);
+// The widget bundles @keel/client with it, so the pair is measured together
+// rather than added up — counting the shared transport twice would report a
+// number the browser never downloads.
+const widget = await measure("../react/src/index.ts", ["react", "react-dom", "react/jsx-runtime"]);
 
+const percent = ((widget / BUDGET_BYTES) * 100).toFixed(1);
+
+process.stdout.write(`@keel/client:        ${client} B gzipped\n`);
 process.stdout.write(
-  `@keel/client: ${gzipped} B gzipped (${percent}% of the ${BUDGET_BYTES} B budget)\n`,
+  `client + widget:     ${widget} B gzipped (${percent}% of the ${BUDGET_BYTES} B budget)\n`,
 );
 
-if (gzipped > BUDGET_BYTES) {
+if (widget > BUDGET_BYTES) {
   process.stderr.write(
-    `error: bundle exceeds the ${BUDGET_BYTES} B budget by ${gzipped - BUDGET_BYTES} B\n`,
+    `error: bundle exceeds the ${BUDGET_BYTES} B budget by ${widget - BUDGET_BYTES} B\n`,
   );
   process.exit(1);
 }

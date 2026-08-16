@@ -26,6 +26,7 @@
     "@types/node": "^22.9.0",
     "esbuild": "^0.24.0",
     "tsx": "^4.19.2",
-    "@keel/api": "workspace:*"
+    "@keel/api": "workspace:*",
+    "@keel/identity": "workspace:*"
   }
 }

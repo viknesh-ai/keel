@@ -21,23 +21,26 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@keel/client": "workspace:*"
+    "@keel/client": "workspace:*",
+    "@keel/ui": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@keel/api": "workspace:*",
+    "@keel/identity": "workspace:*",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^22.9.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "axe-core": "^4.10.2",
     "jsdom": "^25.0.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "@types/node": "^22.9.0"
+    "react-dom": "^19.0.0"
   }
 }

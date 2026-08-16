@@ -4,6 +4,14 @@
 // Consumers import "@keel/ui/styles.css" themselves.
 
 export {
+  ActionCard,
+  type ActionCardProps,
+  type ActionLabels,
+  ApprovalCard,
+  type ApprovalCardProps,
+  type RiskTier,
+} from "./approval.js";
+export {
   contrastRatio,
   MINIMUM_RATIO,
   meetsContrast,

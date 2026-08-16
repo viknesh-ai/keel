@@ -1,5 +1,11 @@
 import type { AddressInfo } from "node:net";
-import { createRealtimeServer, framesAfter, type RealtimeDeps, resetRegistry } from "@keel/api";
+import {
+  createRealtimeServer,
+  framesAfter,
+  type RealtimeDeps,
+  resetRegistry,
+  scriptedDrive,
+} from "@keel/api";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type AguiEvent, type ClientOptions, KeelClient, parseFrame } from "../src/index.js";
 
@@ -57,7 +63,10 @@ describe("session lifecycle", () => {
     const c = client({
       identity: async () => {
         calls += 1;
-        return "a.b.c";
+        // Null, not a stub token: the endpoint now verifies anything it is
+        // given, so a fake string is correctly refused. Verification itself is
+        // covered below.
+        return null;
       },
     });
 
@@ -330,5 +339,94 @@ describe("reset", () => {
     expect(c.session).not.toBeNull();
     c.reset();
     expect(c.session).toBeNull();
+  });
+});
+
+describe("identity verification is actually wired into /rt/v1/sessions", () => {
+  it("refuses a supplied token when the project has no identity configuration", async () => {
+    // Falling back to an anonymous session here would be worse than refusing:
+    // the caller believes they are authenticated and the platform does not.
+    await listen();
+
+    const response = await fetch(`${endpoint}/rt/v1/sessions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ project_id: "p", identity_token: "anything-at-all" }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("refuses an unverifiable token when identity IS configured", async () => {
+    const { generateIdentityKeypair, jwksFor } = await import("@keel/identity");
+    const keypair = await generateIdentityKeypair("k1");
+
+    await listen({
+      drive: scriptedDrive,
+      identity: {
+        issuer: "https://app.example",
+        jwksUri: "https://app.example/.well-known/jwks.json",
+        audience: "keel:p",
+        algorithms: ["EdDSA"],
+        allowSymmetric: false,
+      },
+      identityKeys: (await jwksFor(keypair)) as never,
+    });
+
+    const response = await fetch(`${endpoint}/rt/v1/sessions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ project_id: "p", identity_token: "not.a.token" }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("accepts a genuinely verifiable token and binds the session to the subject", async () => {
+    const { generateIdentityKeypair, jwksFor, mintIdentityToken } = await import("@keel/identity");
+    const keypair = await generateIdentityKeypair("k1");
+
+    await listen({
+      drive: scriptedDrive,
+      identity: {
+        issuer: "https://app.example",
+        jwksUri: "https://app.example/.well-known/jwks.json",
+        audience: "keel:p",
+        algorithms: ["EdDSA"],
+        allowSymmetric: false,
+      },
+      identityKeys: (await jwksFor(keypair)) as never,
+    });
+
+    const { token } = await mintIdentityToken(keypair, {
+      subject: "usr_42",
+      issuer: "https://app.example",
+      audience: "keel:p",
+    });
+
+    const response = await fetch(`${endpoint}/rt/v1/sessions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ project_id: "p", identity_token: token }),
+    });
+
+    expect(response.status).toBe(201);
+    const session = (await response.json()) as { anonymous: boolean; subject?: string };
+    expect(session.anonymous).toBe(false);
+    expect(session.subject).toBe("usr_42");
+  });
+
+  it("publishes a JWKS so a customer backend can verify our action tokens", async () => {
+    await listen();
+
+    const response = await fetch(`${endpoint}/.well-known/jwks.json`);
+    const body = (await response.json()) as { keys: { kty: string; alg: string }[] };
+
+    expect(response.status).toBe(200);
+    expect(body.keys).toHaveLength(1);
+    expect(body.keys[0]?.alg).toBe("EdDSA");
+    // Public material only — there is nothing secret in a JWKS, and a leaked
+    // private component here would let anyone mint action tokens.
+    expect(JSON.stringify(body)).not.toContain('"d"');
   });
 });

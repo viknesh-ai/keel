@@ -2,6 +2,22 @@
 // Identity token verification, sessions and the keel-identity helper.
 
 export {
+  ACTION_TOKEN_TTL_SECONDS,
+  type ActionKeypair,
+  type ActionTokenClaims,
+  type ActionVerifyFailure,
+  type ActionVerifyOptions,
+  type ActionVerifyResult,
+  actionJwks,
+  canonicalJson,
+  confirmationOf,
+  generateActionKeypair,
+  hashArguments,
+  mintActionToken,
+  type VerifiedAction,
+  verifyActionToken,
+} from "./action-token.js";
+export {
   DEFAULT_TTL_SECONDS,
   generateIdentityKeypair,
   jwksFor,
@@ -9,6 +25,7 @@ export {
   type MintOptions,
   mintIdentityToken,
 } from "./helper.js";
+
 export {
   ANONYMOUS_LIMITS,
   anonymousSession,

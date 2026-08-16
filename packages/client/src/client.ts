@@ -155,7 +155,11 @@ export class KeelClient {
   async run(conversationId: string, message: string): Promise<void> {
     await this.ensureSession();
 
-    this.#controller = new AbortController();
+    // Captured locally as well as stored. `reset()` clears the field, and a
+    // reconnect loop that reads the field would then fail to notice it had been
+    // stopped and would open a fresh run against a client that was logged out.
+    const controller = new AbortController();
+    this.#controller = controller;
     this.#lastEventId = null;
 
     let attempt = 0;
@@ -168,11 +172,11 @@ export class KeelClient {
       } catch (cause) {
         // A cancel is not a failure and must not be retried: reconnecting a
         // stream the user just stopped is the opposite of what they asked for.
-        if (this.#controller?.signal.aborted === true) return;
+        if (controller.signal.aborted) return;
         if (attempt >= maxAttempts) throw cause;
       }
 
-      if (this.#controller?.signal.aborted === true) return;
+      if (controller.signal.aborted) return;
 
       attempt += 1;
       // Exponential with a ceiling. Reconnecting instantly in a loop against a
@@ -209,7 +213,57 @@ export class KeelClient {
       throw new KeelClientError(response.status, "run stream could not be opened");
     }
 
-    const reader = response.body.getReader();
+    return this.#consume(response.body, signal);
+  }
+
+  /**
+   * Reattaches to a run already in flight.
+   *
+   * This is how an approval survives a page reload: the server replays what the
+   * run has already said, so a pending `INTERRUPT` arrives again and the card
+   * comes back without any separate restore API.
+   */
+  async reattach(runId: string): Promise<void> {
+    await this.ensureSession();
+    this.#controller = new AbortController();
+    const signal = this.#controller.signal;
+
+    const response = await this.#fetch(`${this.#options.endpoint}/rt/v1/runs/${runId}/stream`, {
+      method: "GET",
+      headers: {
+        accept: "text/event-stream",
+        ...(this.#session === null ? {} : { "x-keel-session": this.#session.id }),
+        ...(this.#lastEventId === null ? {} : { "last-event-id": this.#lastEventId }),
+      },
+      signal,
+    });
+
+    if (!response.ok || response.body === null) {
+      // A run that ended while the page was away is not an error worth showing.
+      // There is simply nothing to reattach to.
+      throw new KeelClientError(response.status, "run stream could not be reattached");
+    }
+
+    await this.#consume(response.body, signal);
+  }
+
+  /**
+   * Answers a pending approval. `confirm` mode only; see doc 03 §C4.
+   *
+   * The idempotency key is minted here, per call, so a retry of *this* request
+   * replays rather than deciding twice — while a genuinely new decision, made
+   * after the first was refused, gets its own key.
+   */
+  async decide(approvalId: string, decision: "approved" | "rejected"): Promise<void> {
+    await this.#request(`/rt/v1/approvals/${approvalId}/decide`, {
+      method: "POST",
+      headers: { "idempotency-key": newKey() },
+      body: JSON.stringify({ decision }),
+    });
+  }
+
+  async #consume(body: ReadableStream<Uint8Array>, signal: AbortSignal): Promise<boolean> {
+    const reader = body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     let finished = false;
@@ -266,6 +320,16 @@ export class KeelClient {
     this.#lastEventId = null;
     this.#emitter.clear();
   }
+}
+
+/** A unique key per user action. `randomUUID` exists in browsers and Node 22. */
+function newKey(): string {
+  const c = globalThis.crypto;
+  if (typeof c?.randomUUID === "function") return c.randomUUID();
+  // Older embedded webviews. Collision risk is irrelevant here: the key is
+  // scoped to one session and one path, and only has to be unique against that
+  // session's own recent requests.
+  return `k_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
 /** Parses one SSE frame. Returns undefined for comments and keep-alives. */

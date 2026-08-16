@@ -90,6 +90,9 @@ importers:
       '@keel/identity':
         specifier: workspace:*
         version: link:../../packages/identity
+      '@keel/node':
+        specifier: workspace:*
+        version: link:../../packages/node
       '@keel/react':
         specifier: workspace:*
         version: link:../../packages/react
@@ -160,6 +163,9 @@ importers:
       '@keel/api':
         specifier: workspace:*
         version: link:../../services/api
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../identity
       '@types/node':
         specifier: ^22.9.0
         version: 22.20.1
@@ -202,7 +208,18 @@ importers:
         specifier: ^22.9.0
         version: 22.20.1
 
-  packages/node: {}
+  packages/node:
+    dependencies:
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../identity
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
 
   packages/policy-engine:
     dependencies:
@@ -222,7 +239,16 @@ importers:
       '@keel/client':
         specifier: workspace:*
         version: link:../client
+      '@keel/ui':
+        specifier: workspace:*
+        version: link:../ui
     devDependencies:
+      '@keel/api':
+        specifier: workspace:*
+        version: link:../../services/api
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../identity
       '@testing-library/dom':
         specifier: ^10.4.0
         version: 10.4.1
@@ -258,6 +284,13 @@ importers:
         version: 19.2.8(react@19.2.8)
 
   packages/tool-runtime:
+    dependencies:
+      '@keel/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^22.9.0
@@ -350,6 +383,9 @@ importers:
       '@keel/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       pg:
         specifier: ^8.13.1
         version: 8.23.0
@@ -365,15 +401,27 @@ importers:
 
   tests:
     dependencies:
+      '@keel/agent-runtime':
+        specifier: workspace:*
+        version: link:../packages/agent-runtime
       '@keel/api':
         specifier: workspace:*
         version: link:../services/api
+      '@keel/contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
+      '@keel/identity':
+        specifier: workspace:*
+        version: link:../packages/identity
       '@keel/policy-engine':
         specifier: workspace:*
         version: link:../packages/policy-engine
       '@keel/scripts':
         specifier: workspace:*
         version: link:../scripts
+      '@keel/tool-runtime':
+        specifier: workspace:*
+        version: link:../packages/tool-runtime
       pg:
         specifier: ^8.13.1
         version: 8.23.0

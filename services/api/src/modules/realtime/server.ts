@@ -1,88 +1,78 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import {
+  type ActionKeypair,
+  actionJwks,
+  generateActionKeypair,
+  type IdentityConfig,
+  InMemoryReplayCache,
+  verifyIdentityToken,
+} from "@keel/identity";
+import { waitForDecision } from "./approval-waits.js";
+import { handleDecide, type RecordDecision } from "./approvals-route.js";
+import type { Drive, DriveContext } from "./drive.js";
 import type { AguiEvent } from "./events.js";
-import { cancelRun, emit, endRun, getRun, type LiveRun, startRun } from "./registry.js";
-import { encodeFrame, framesAfter, KEEPALIVE, SSE_HEADERS } from "./sse.js";
+import { json, problem, readBody } from "./http.js";
+import {
+  type IdempotencyStore,
+  InMemoryIdempotencyStore,
+  idempotencyGate,
+  rememberResponse,
+} from "./idempotency-gate.js";
+import { handleReattach } from "./reattach-route.js";
+import { cancelRun, endRun, getRun, publish, startRun, subscribe } from "./registry.js";
+import { scriptedDrive } from "./scripted-drive.js";
+import { encodeFrame, KEEPALIVE, SSE_HEADERS } from "./sse.js";
 
 /**
  * The `/rt/v1` surface (doc 05 Part A): sessions, conversations, runs over SSE,
- * cancel.
+ * approval decisions, cancel.
  *
  * Built on node:http rather than a framework. This service is the deployable and
  * will grow a framework when it grows the rest of its HTTP surface; adding one
- * now to serve four endpoints would mean choosing it before the requirements
+ * now to serve five endpoints would mean choosing it before the requirements
  * that should decide it exist.
  *
- * The run driver here is a placeholder in one specific sense, stated plainly:
- * it emits a scripted AG-UI sequence rather than invoking the agent runtime.
- * Wiring the runtime in is session 1.11's job, and the transport has to be
- * provably correct before something real is pushed through it. What is *not*
- * placeholder is everything the session's exit criterion names: ordering,
- * resume, and cancellation reaching the server.
+ * The default driver is scripted rather than the agent runtime — see
+ * scripted-drive.ts, which says exactly what that does and does not cover.
  */
 
-export type Sessions = Map<string, { id: string; anonymous: boolean; expires_at: number }>;
+export type Sessions = Map<
+  string,
+  {
+    id: string;
+    anonymous: boolean;
+    expires_at: number;
+    subject?: string;
+    identity_jti?: string;
+  }
+>;
 
 export type RealtimeDeps = {
-  /** Drives one run, emitting events. Replaced with the agent runtime in 1.11. */
-  readonly drive: (
-    run: LiveRun,
-    message: string,
-    emitEvent: (e: AguiEvent) => void,
-  ) => Promise<void>;
-};
-
-const json = (res: ServerResponse, status: number, body: unknown): void => {
-  const payload = JSON.stringify(body);
-  res.writeHead(status, { "content-type": "application/json" });
-  res.end(payload);
-};
-
-const problem = (res: ServerResponse, status: number, detail: string): void => {
-  res.writeHead(status, { "content-type": "application/problem+json" });
-  res.end(JSON.stringify({ type: "about:blank", title: "Error", status, detail }));
-};
-
-async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  if (chunks.length === 0) return {};
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
-/** The default driver: a realistic read-path sequence, used by the harness. */
-export const scriptedDrive: RealtimeDeps["drive"] = async (run, message, emitEvent) => {
-  emitEvent({ type: "RUN_STARTED", run_id: run.run_id });
-  emitEvent({ type: "ACTIVITY", key: "resolving_intent", state: "started" });
-
-  const callId = `call_${randomUUID().slice(0, 8)}`;
-  emitEvent({ type: "TOOL_CALL_START", call_id: callId, tool: "list_customers" });
-  emitEvent({ type: "ACTIVITY", key: "searching_customers", state: "started" });
-
-  await new Promise((r) => setTimeout(r, 10));
-  if (run.cancelled) return;
-
-  emitEvent({ type: "TOOL_CALL_RESULT", call_id: callId, ok: true });
-  emitEvent({ type: "TOOL_CALL_END", call_id: callId });
-  emitEvent({ type: "ACTIVITY", key: "found_customers", state: "done", params: { count: 43 } });
-
-  const messageId = `msg_${randomUUID().slice(0, 8)}`;
-  emitEvent({ type: "TEXT_MESSAGE_START", message_id: messageId });
-
-  for (const word of `Answering: ${message}`.split(" ")) {
-    // Cancellation is checked between chunks, so a stop actually stops the work
-    // rather than only closing the socket the tokens are travelling down.
-    if (run.cancelled) return;
-    await new Promise((r) => setTimeout(r, 5));
-    emitEvent({ type: "TEXT_MESSAGE_CONTENT", message_id: messageId, delta: `${word} ` });
-  }
-
-  emitEvent({ type: "TEXT_MESSAGE_END", message_id: messageId });
-  emitEvent({ type: "RUN_FINISHED", run_id: run.run_id, state: "Completed" });
+  readonly drive: Drive;
+  /**
+   * The project's identity configuration. When present, a supplied
+   * identity_token is *verified* rather than merely observed.
+   *
+   * Absent, the endpoint serves anonymous sessions only and refuses a supplied
+   * token outright — "no configuration" must never mean "believe whatever you
+   * are told".
+   */
+  readonly identity?: IdentityConfig;
+  /** A local key set, for tests. Production resolves the customer's JWKS. */
+  readonly identityKeys?: { keys: unknown[] };
+  /** A persisted signing keypair. Ephemeral by default. */
+  readonly actionKeypair?: ActionKeypair;
+  /**
+   * Persists a decision before the suspended run is woken. Without it the
+   * decision exists only in this process, which is precisely what durable
+   * suspend is not.
+   */
+  readonly recordDecision?: RecordDecision;
+  /** How long a suspended run holds its connection. 30 minutes by default. */
+  readonly approvalTimeoutMs?: number;
+  /** Backs `Idempotency-Key`. Redis in a deployment; in-memory by default. */
+  readonly idempotencyStore?: IdempotencyStore;
 };
 
 export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive }): {
@@ -91,25 +81,74 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
 } {
   const sessions: Sessions = new Map();
   const conversations = new Set<string>();
+  const replayCache = new InMemoryReplayCache();
+  const idempotency: IdempotencyStore = deps.idempotencyStore ?? new InMemoryIdempotencyStore();
+
+  // Generated once, lazily. A deployment supplies a persisted keypair; an
+  // ephemeral one is the right default because it makes it impossible to ship a
+  // signing key by accident.
+  let keypair: Promise<ActionKeypair> | undefined;
+  const actionKeys = (): Promise<ActionKeypair> => {
+    keypair ??=
+      deps.actionKeypair === undefined
+        ? generateActionKeypair()
+        : Promise.resolve(deps.actionKeypair);
+    return keypair;
+  };
 
   const server = createServer((req, res) => {
     void handle(req, res).catch(() => problem(res, 500, "internal error"));
   });
 
-  async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  async function handle(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
     const sessionId = req.headers["x-keel-session"];
 
+    // Keel's public keys, so a customer backend can verify our action tokens.
+    if (req.method === "GET" && path === "/.well-known/jwks.json") {
+      return json(res, 200, await actionJwks(await actionKeys()));
+    }
+
     if (req.method === "POST" && path === "/rt/v1/sessions") {
       const body = await readBody(req);
-      // An identity token would be verified here via @keel/identity. Absent one,
-      // the session is anonymous and second-class — never elevated by default.
-      const anonymous = typeof body["identity_token"] !== "string";
+      const supplied = body["identity_token"];
+
+      // No token: an anonymous session, second-class by construction.
+      if (typeof supplied !== "string") {
+        const session = {
+          id: `sess_${randomUUID()}`,
+          anonymous: true,
+          expires_at: Math.floor(Date.now() / 1000) + 1800,
+        };
+        sessions.set(session.id, session);
+        return json(res, 201, session);
+      }
+
+      // A token was supplied, so it is verified. Falling back to an anonymous
+      // session here would be worse than refusing: the caller believes they are
+      // authenticated and the platform believes they are not.
+      if (deps.identity === undefined) {
+        return problem(res, 401, "this project has no identity configuration");
+      }
+
+      const verified = await verifyIdentityToken(supplied, deps.identity, {
+        replayCache,
+        ...(deps.identityKeys === undefined ? {} : { localKeys: deps.identityKeys as never }),
+      });
+
+      if (!verified.ok) {
+        // One status for every failure, so an attacker cannot learn which check
+        // rejected them.
+        return problem(res, 401, "the identity token was not accepted");
+      }
+
       const session = {
         id: `sess_${randomUUID()}`,
-        anonymous,
-        expires_at: Math.floor(Date.now() / 1000) + (anonymous ? 1800 : 3600),
+        anonymous: false,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        subject: verified.identity.subject,
+        identity_jti: verified.identity.jti,
       };
       sessions.set(session.id, session);
       return json(res, 201, session);
@@ -117,9 +156,9 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
 
     // Everything below requires a session. Nothing is reachable anonymously by
     // accident — an unknown session id is a 401, not a new session.
-    if (typeof sessionId !== "string" || !sessions.has(sessionId)) {
-      return problem(res, 401, "a valid session is required");
-    }
+    if (typeof sessionId !== "string") return problem(res, 401, "a valid session is required");
+    const session = sessions.get(sessionId);
+    if (session === undefined) return problem(res, 401, "a valid session is required");
 
     if (req.method === "POST" && path === "/rt/v1/conversations") {
       const id = `conv_${randomUUID()}`;
@@ -136,44 +175,114 @@ export function createRealtimeServer(deps: RealtimeDeps = { drive: scriptedDrive
       const message = typeof body["message"] === "string" ? body["message"] : "";
 
       const runId = `run_${randomUUID()}`;
-      const run = startRun(runId, sessionId);
+      const run = startRun(runId, sessionId, session.subject ?? null);
 
       res.writeHead(200, SSE_HEADERS);
-      // The run id reaches the client before any event, so a cancel is possible
-      // from the very first frame rather than only after RUN_STARTED arrives.
-      res.write(
-        encodeFrame(emit(run, { type: "CUSTOM", name: "run.id", payload: { run_id: runId } })),
-      );
-
-      const lastEventId =
-        typeof req.headers["last-event-id"] === "string" ? req.headers["last-event-id"] : null;
-      for (const frame of framesAfter(run.frames, lastEventId)) {
-        if (frame.id > 1) res.write(encodeFrame(frame));
-      }
 
       const keepalive = setInterval(() => res.write(KEEPALIVE), 15_000);
-      // The client going away must stop the work, not just the writing.
-      res.on("close", () => {
-        clearInterval(keepalive);
-        cancelRun(runId);
+      const unsubscribe = subscribe(run, {
+        write: (frame) => res.write(encodeFrame(frame)),
+        close: () => undefined,
       });
 
+      // The client going away must stop the work, not just the writing —
+      // unless the run is parked on a human decision. A suspended run is not
+      // spending anything, and cancelling it would mean a page reload silently
+      // throws away an approval the user is part-way through answering.
+      res.on("close", () => {
+        clearInterval(keepalive);
+        unsubscribe();
+        if (!run.suspended && run.subscribers.size === 0) cancelRun(runId);
+      });
+
+      // The run id reaches the client before any event, so a cancel is possible
+      // from the very first frame rather than only after RUN_STARTED arrives.
+      publish(run, { type: "CUSTOM", name: "run.id", payload: { run_id: runId } });
+
+      const emitEvent = (event: AguiEvent): void => {
+        if (run.cancelled) return;
+        publish(run, event);
+      };
+
+      const ctx: DriveContext = {
+        requestApproval: async ({ approvalId, tool, mode, timeoutMs, ...facts }) => {
+          // The INTERRUPT goes out first. If the wait were registered after the
+          // event, a decision arriving on a fast second connection would find
+          // nobody listening and the run would hang until its deadline.
+          const wait = {
+            approval_id: approvalId,
+            run_id: runId,
+            session_id: sessionId,
+            subject: session.subject ?? null,
+            mode,
+          };
+          const decision = waitForDecision(
+            run,
+            wait,
+            timeoutMs ?? deps.approvalTimeoutMs ?? 1_800_000,
+          );
+          run.suspended = true;
+          emitEvent({ type: "INTERRUPT", approval_id: approvalId, tool, mode, ...facts });
+
+          try {
+            return await decision;
+          } finally {
+            run.suspended = false;
+          }
+        },
+      };
+
       try {
-        await deps.drive(run, message, (event) => {
-          if (run.cancelled) return;
-          res.write(encodeFrame(emit(run, event)));
-        });
+        await deps.drive(run, message, emitEvent, ctx);
 
         if (run.cancelled) {
-          res.write(
-            encodeFrame(emit(run, { type: "RUN_FINISHED", run_id: runId, state: "Cancelled" })),
-          );
+          publish(run, { type: "RUN_FINISHED", run_id: runId, state: "Cancelled" });
         }
       } finally {
         clearInterval(keepalive);
+        unsubscribe();
         endRun(runId);
         res.end();
       }
+      return;
+    }
+
+    const reattachMatch = /^\/rt\/v1\/runs\/([^/]+)\/stream$/.exec(path);
+    if (req.method === "GET" && reattachMatch !== null) {
+      return handleReattach(res, {
+        runId: reattachMatch[1] ?? "",
+        actor: session,
+        lastEventId:
+          typeof req.headers["last-event-id"] === "string" ? req.headers["last-event-id"] : null,
+      });
+    }
+
+    const decideMatch = /^\/rt\/v1\/approvals\/([^/]+)\/decide$/.exec(path);
+    if (req.method === "POST" && decideMatch !== null) {
+      // The one mutating JSON endpoint on this surface, so the one that needs
+      // the gate. Cancel is naturally idempotent — stopping a stopped run is
+      // the same as stopping it once — and starting a run returns a stream,
+      // which cannot meaningfully be replayed from a stored body.
+      const gate = await idempotencyGate(req, res, {
+        sessionId,
+        path,
+        store: idempotency,
+      });
+      if (gate.status !== "proceed") return;
+
+      const written = await handleDecide(req, res, {
+        approvalId: decideMatch[1] ?? "",
+        actor: session,
+        // The identity subject when there is one. Never a body field: who
+        // decided is not something the decider gets to assert.
+        decidedBy: session.subject ?? sessionId,
+        ...(deps.recordDecision === undefined ? {} : { recordDecision: deps.recordDecision }),
+      });
+
+      // Recorded whatever the outcome: a repeat of a request that was refused
+      // must be refused the same way, or a client can retry its way past a
+      // decision the server already made.
+      await rememberResponse(idempotency, gate.key, written);
       return;
     }
 

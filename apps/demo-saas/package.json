@@ -29,7 +29,8 @@
     "react-router-dom": "^7.1.1",
     "@keel/identity": "workspace:*",
     "@keel/react": "workspace:*",
-    "@keel/client": "workspace:*"
+    "@keel/client": "workspace:*",
+    "@keel/node": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

@@ -141,6 +141,35 @@ export async function endRun(
 }
 
 /**
+ * Cancels a run (doc 01 §4.2, session 2.5).
+ *
+ * Two properties, both of which are the point:
+ *
+ * - It is conditional on the run not already being terminal, in one statement.
+ *   A cancel that overwrote `Completed` would rewrite history to say the user
+ *   stopped something that had in fact finished.
+ * - It touches `runs` only. The partial trace stays exactly as it was, because
+ *   `run_steps` is append-only and a cancelled run is the case where the steps
+ *   matter most: "how far did it get before I stopped it?" is unanswerable if
+ *   cancelling tidies up after itself.
+ */
+export async function cancelRun(
+  scope: OrgScope,
+  runId: string,
+  reason?: string,
+): Promise<RunRow | undefined> {
+  return scopedQueryOne<RunRow>(
+    scope,
+    `update runs
+        set state = 'Cancelled', error_class = $2, ended_at = now()
+      where id = $1
+        and state not in ('Completed', 'Failed', 'Denied', 'Expired', 'Cancelled')
+      returning *`,
+    [runId, reason ?? null],
+  );
+}
+
+/**
  * Append a step.
  *
  * The sequence number comes from `runs.next_seq`, taken under that row's lock
