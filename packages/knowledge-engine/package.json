@@ -21,6 +21,12 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@types/node": "^22.9.0"
+    "@types/node": "^22.9.0",
+    "@types/turndown": "^5.0.6"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "turndown": "7.2.4",
+    "unpdf": "1.8.1"
   }
 }
